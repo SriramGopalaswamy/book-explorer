@@ -29,6 +29,9 @@ import {
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useBankAccounts } from "@/hooks/useBanking";
+import { Wallet } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -374,6 +377,18 @@ export default function Bills() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // Bulk pay state (GBC-86)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPayOpen, setBulkPayOpen] = useState(false);
+  const [bulkPay, setBulkPay] = useState({
+    payment_date: new Date().toISOString().split("T")[0],
+    payment_method: "bank_transfer",
+    bank_account_id: "",
+    reference_number: "",
+  });
+  const [bulkPaying, setBulkPaying] = useState(false);
+  const { data: bankAccounts = [] } = useBankAccounts();
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
@@ -619,6 +634,55 @@ export default function Bills() {
       toast.error(e.message || "Failed to update bill status");
     },
   });
+
+  // GBC-86: Bulk pay selected bills via record_vendor_payment RPC + bill_payment_lines tracking.
+  const runBulkPay = async () => {
+    if (!orgId) return;
+    if (!bulkPay.bank_account_id) { toast.error("Please select a bank account."); return; }
+    const targets = bills.filter((b: any) => selectedIds.has(b.id) && (b.status === "received" || b.status === "overdue" || isOverdue(b)));
+    if (targets.length === 0) { toast.error("No payable bills selected."); return; }
+
+    setBulkPaying(true);
+    let ok = 0; const errs: string[] = [];
+    for (const b of targets) {
+      try {
+        const amt = Number(b.total_amount);
+        const { data: pmtId, error } = await (supabase as any).rpc("record_vendor_payment", {
+          p_bill_id: b.id,
+          p_amount: amt,
+          p_payment_method: bulkPay.payment_method,
+          p_bank_account_id: bulkPay.bank_account_id,
+          p_reference: bulkPay.reference_number || null,
+          p_payment_date: bulkPay.payment_date,
+        });
+        if (error) throw error;
+        // Track allocation in bill_payment_lines (best-effort; trigger validates totals).
+        if (pmtId) {
+          await supabase.from("bill_payment_lines").insert({
+            organization_id: orgId,
+            vendor_payment_id: pmtId,
+            bill_id: b.id,
+            amount_applied: amt,
+          } as any);
+        }
+        ok++;
+      } catch (e: any) {
+        errs.push(`${b.bill_number}: ${e.message || "failed"}`);
+      }
+    }
+    setBulkPaying(false);
+    queryClient.invalidateQueries({ queryKey: ["bills"] });
+    queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    if (ok > 0) toast.success(`Paid ${ok} bill${ok === 1 ? "" : "s"}${errs.length ? ` (${errs.length} failed)` : ""}`);
+    if (errs.length) toast.error(errs.slice(0, 3).join(" • "));
+    if (errs.length === 0) {
+      setBulkPayOpen(false);
+      setSelectedIds(new Set());
+    }
+  };
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -870,6 +934,16 @@ export default function Bills() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          {selectedIds.size > 0 && (
+            <Button
+              variant="secondary"
+              className="gap-2 shrink-0"
+              onClick={() => setBulkPayOpen(true)}
+            >
+              <Wallet className="h-4 w-4" />
+              Pay Selected ({selectedIds.size})
+            </Button>
+          )}
           <Button onClick={openDialog} className="gap-2 shrink-0">
             <ScanLine className="h-4 w-4" />
             Scan / Add Bill
@@ -897,6 +971,29 @@ export default function Bills() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/50 hover:bg-transparent">
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          pagination.paginatedItems.length > 0 &&
+                          pagination.paginatedItems.every((b: any) =>
+                            selectedIds.has(b.id) || !(b.status === "received" || b.effectiveStatus === "overdue")
+                          ) &&
+                          pagination.paginatedItems.some((b: any) => selectedIds.has(b.id))
+                        }
+                        onCheckedChange={(v) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            for (const b of pagination.paginatedItems as any[]) {
+                              const payable = b.status === "received" || b.effectiveStatus === "overdue";
+                              if (!payable) continue;
+                              if (v) next.add(b.id); else next.delete(b.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        aria-label="Select all payable bills on this page"
+                      />
+                    </TableHead>
                     <TableHead className="text-xs">Bill #</TableHead>
                     <TableHead className="text-xs">Vendor</TableHead>
                     <TableHead className="text-xs">Sub-total</TableHead>
@@ -909,8 +1006,24 @@ export default function Bills() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagination.paginatedItems.map((b: any) => (
+                  {pagination.paginatedItems.map((b: any) => {
+                    const payable = b.status === "received" || b.effectiveStatus === "overdue";
+                    return (
                     <TableRow key={b.id} className="border-border/30 hover:bg-muted/20">
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(b.id)}
+                          disabled={!payable}
+                          onCheckedChange={(v) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(b.id); else next.delete(b.id);
+                              return next;
+                            });
+                          }}
+                          aria-label={`Select bill ${b.bill_number}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono text-sm text-foreground">{b.bill_number}</span>
@@ -973,7 +1086,8 @@ export default function Bills() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
               <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
@@ -1426,6 +1540,78 @@ export default function Bills() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ════════════ Bulk Pay Dialog (GBC-86) ════════════ */}
+      <Dialog open={bulkPayOpen} onOpenChange={(v) => { if (!bulkPaying) setBulkPayOpen(v); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" /> Pay Selected Bills
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const targets = bills.filter((b: any) => selectedIds.has(b.id));
+                const total = targets.reduce((s: number, b: any) => s + Number(b.total_amount || 0), 0);
+                return `${targets.length} bill${targets.length === 1 ? "" : "s"} • Total ${fmt(total)}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Bank Account</Label>
+              <Select value={bulkPay.bank_account_id} onValueChange={(v) => setBulkPay((p) => ({ ...p, bank_account_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select bank account…" /></SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>{a.bank_name} — {a.account_number}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={bulkPay.payment_method} onValueChange={(v) => setBulkPay((p) => ({ ...p, payment_method: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Date</Label>
+                <Input type="date" value={bulkPay.payment_date} onChange={(e) => setBulkPay((p) => ({ ...p, payment_date: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Reference Number (optional)</Label>
+              <Input
+                placeholder="e.g. UTR / cheque #"
+                value={bulkPay.reference_number}
+                onChange={(e) => setBulkPay((p) => ({ ...p, reference_number: e.target.value }))}
+              />
+            </div>
+            <div className="rounded border border-border/50 bg-muted/20 p-2 max-h-32 overflow-y-auto text-xs space-y-1">
+              {bills.filter((b: any) => selectedIds.has(b.id)).map((b: any) => (
+                <div key={b.id} className="flex justify-between">
+                  <span className="font-mono">{b.bill_number}</span>
+                  <span>{fmt(Number(b.total_amount))}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkPayOpen(false)} disabled={bulkPaying}>Cancel</Button>
+            <Button onClick={runBulkPay} disabled={bulkPaying || !bulkPay.bank_account_id}>
+              {bulkPaying ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Paying…</> : <>Confirm Payment</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

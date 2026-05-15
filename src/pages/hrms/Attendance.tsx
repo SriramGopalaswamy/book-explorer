@@ -35,6 +35,7 @@ import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
 import { useAttendanceBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 import { AttendanceEnginePanel } from "@/components/attendance/AttendanceEnginePanel";
+import { PendingReviewPanel } from "@/components/attendance/PendingReviewPanel";
 
 export default function Attendance() {
   const bulkUploadConfig = useAttendanceBulkUpload();
@@ -311,6 +312,11 @@ export default function Attendance() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pending Review (GBC-9 / GBC-77) */}
+      <div className="mb-6">
+        <PendingReviewPanel />
+      </div>
 
       {/* Attendance Engine */}
       <div className="mb-6">
