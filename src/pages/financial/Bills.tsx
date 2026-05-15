@@ -29,6 +29,9 @@ import {
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useBankAccounts } from "@/hooks/useBanking";
+import { Wallet } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
