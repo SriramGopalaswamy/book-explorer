@@ -418,7 +418,8 @@ function PendingCorrections() {
     const finalCheckIn = editCheckIn || null;
     const finalCheckOut = editCheckOut || null;
 
-    const { error } = await supabase
+    // GBC-104: atomic state transition — only update rows still 'pending'
+    const { data: updatedRows, error } = await supabase
       .from("attendance_correction_requests")
       .update({
         status: pendingAction,
@@ -428,11 +429,18 @@ function PendingCorrections() {
         requested_check_in: finalCheckIn,
         requested_check_out: finalCheckOut,
       })
-      .eq("id", selected.id);
+      .eq("id", selected.id)
+      .eq("status", "pending")
+      .select("id");
     setSubmitting(false);
 
     if (error) {
       toast.error("Failed to update correction request.");
+    } else if (!updatedRows || updatedRows.length === 0) {
+      // GBC-118: another reviewer already actioned this request
+      toast.error("This request has already been actioned");
+      queryClient.invalidateQueries({ queryKey: ["direct-reports-corrections-pending"] });
+      setDialogOpen(false);
     } else {
       // If approved, update the actual attendance records with corrected times
       if (pendingAction === "approved") {
