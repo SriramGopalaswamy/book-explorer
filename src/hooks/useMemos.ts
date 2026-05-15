@@ -384,11 +384,16 @@ export function useApproveMemo() {
     }) => {
       if (!user) throw new Error("Not authenticated");
 
+      // Resolve caller org first for scoping
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       // Self-approval guard (maker-checker)
       const { data: memo, error: fetchErr } = await supabase
         .from("memos")
         .select("user_id, status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr || !memo) throw fetchErr || new Error("Memo not found.");
       if ((memo as any).user_id === user.id) {
@@ -407,10 +412,6 @@ export function useApproveMemo() {
       if (updatedTitle) updates.title = updatedTitle;
       if (updatedSubject) updates.subject = updatedSubject;
       if (updatedRecipients) updates.recipients = updatedRecipients;
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { data, error } = await supabase
         .from("memos")
