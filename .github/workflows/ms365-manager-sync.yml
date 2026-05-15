@@ -1,0 +1,51 @@
+name: MS365 Manager Sync
+
+# Pulls manager assignments from Microsoft 365 and writes them to
+# profiles.manager_id so the org chart stays current without manual
+# intervention.  Runs every hour; can also be triggered manually from
+# the Actions tab (useful after a bulk reorganisation in the M365 admin).
+#
+# Setup (one-time):
+#   1. Generate a strong random secret, e.g.:
+#        openssl rand -hex 32
+#   2. Add it to Lovable → Project Settings → Supabase → Edge Function Secrets
+#      as  MS365_CRON_SECRET
+#   3. Add the same value to GitHub → repo Settings → Secrets → Actions
+#      as  MS365_CRON_SECRET
+#   4. Add your Supabase project URL to GitHub Secrets as VITE_SUPABASE_URL
+#      (same value already used by the keep-alive workflow — reuse if present)
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # top of every hour, 24/7
+  workflow_dispatch:        # allow manual trigger from Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Sync MS365 manager assignments
+        run: |
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.VITE_SUPABASE_URL }}/functions/v1/ms365-sync" \
+            -H "Authorization: Bearer ${{ secrets.MS365_CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"sync_managers"}')
+
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | head -n-1)
+
+          echo "HTTP $HTTP_STATUS"
+          echo "$BODY"
+
+          if [ "$HTTP_STATUS" -ge 400 ]; then
+            echo "Sync failed with HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          # Surface synced / skipped / errors counts in the job summary
+          SYNCED=$(echo "$BODY" | grep -o '"synced":[0-9]*' | grep -o '[0-9]*' || echo "?")
+          SKIPPED=$(echo "$BODY" | grep -o '"skipped":[0-9]*' | grep -o '[0-9]*' || echo "?")
+          echo "Result: ${SYNCED} updated, ${SKIPPED} unchanged"
