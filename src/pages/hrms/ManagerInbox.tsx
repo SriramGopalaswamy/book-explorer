@@ -259,7 +259,16 @@ function PendingLeaves() {
       { leaveId, action },
       {
         onSuccess: () => toast.success(`Leave request ${action}.`),
-        onError: () => toast.error("Failed to update leave request."),
+        onError: (err: any) => {
+          // GBC-118 / GBC-119: detect "already actioned" race conditions
+          const code = err?.code;
+          const msg = (err?.message || "").toLowerCase();
+          if (code === "PGRST116" || msg.includes("already") || msg.includes("actioned")) {
+            toast.error("This request has already been actioned");
+          } else {
+            toast.error("Failed to update leave request.");
+          }
+        },
       }
     );
   };
