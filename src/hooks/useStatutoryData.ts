@@ -98,24 +98,8 @@ async function fetchDualSourceStatutoryPayroll(
     );
   }
 
-  // ── Legacy path ───────────────────────────────────────────────────────────
-      const { data: legacyRows } = await supabase
-        .from("payroll_records")
-        .select(`*, profiles!profile_id(${profileSelect})`)
-        .is("deleted_at", null)
-        .gte("created_at", from)
-        .lte("created_at", to + "T23:59:59")
-        .in("status", statuses);
-
-  // De-duplicate: engine row wins for same (profile_id, pay_period)
-  const engineKeys = new Set(
-    engineRows.map((r) => `${r.profile_id}:${r.pay_period}`)
-  );
-  const filteredLegacy = (legacyRows ?? []).filter(
-    (r: any) => !engineKeys.has(`${r.profile_id}:${r.pay_period}`)
-  );
-
-  return [...engineRows, ...filteredLegacy];
+  // Phase 4 (2026-05-15): legacy payroll_records reads retired — engine-only.
+  return engineRows;
 }
 
 // ── GSTR-1: Outward supplies (B2B + B2C) from invoices ──
