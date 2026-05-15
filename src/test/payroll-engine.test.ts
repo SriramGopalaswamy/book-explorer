@@ -122,7 +122,9 @@ describe("exportPayrollCSV", () => {
 
     expect(headerLine).toBe(
       "Employee Name,Department,Job Title,Annual CTC," +
-        "Gross Earnings,Total Deductions,LWP Days,LWP Deduction," +
+        "Gross Earnings,PF (Employee),PF (Employer),TDS," +
+        "Professional Tax,Incentive,Bonus," +
+        "Total Deductions,LWP Days,LWP Deduction," +
         "Working Days,Paid Days,Net Pay",
     );
   });
