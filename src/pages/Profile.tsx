@@ -115,9 +115,13 @@ export default function Profile() {
   const [phone, setPhone] = useState("");
 
   // Password change form
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  // GBC-105: detect OAuth/MS365 users — they cannot change password here
+  const authProvider = (user?.app_metadata as any)?.provider as string | undefined;
+  const isPasswordAuth = !authProvider || authProvider === "email";
 
   // Change request dialog
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
