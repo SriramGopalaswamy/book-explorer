@@ -473,7 +473,10 @@ export default function Bills() {
       // ── Fiscal period guard ──
       const { validateFiscalPeriod } = await import("@/lib/fiscal-period-guard");
       await validateFiscalPeriod(form.bill_date);
-
+      // GBC-107: granular open-period check against fiscal_periods table
+      if (!isDateInOpenPeriod(form.bill_date, openPeriods)) {
+        throw new Error("Selected date is in a closed fiscal period");
+      }
       const subtotal = parseFloat(form.amount) || 0;
       const tax = parseFloat(form.tax_amount) || 0;
       const total = subtotal + tax;
