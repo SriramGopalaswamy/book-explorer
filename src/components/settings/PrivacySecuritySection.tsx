@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useConsentRecords, useDataErasureRequests, useDataBreachLog, useSessionPolicy } from "@/hooks/usePrivacyCompliance";
 import { useDataExportRequests, useRequestDataExport } from "@/hooks/useDataExport";
 import { useIsAdminOrHR } from "@/hooks/useRoles";
+import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { format } from "date-fns";
 
 const CONSENT_TYPES = [
