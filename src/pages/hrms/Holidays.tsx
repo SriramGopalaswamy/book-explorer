@@ -293,6 +293,17 @@ export default function Holidays() {
               </div>
               {isAdmin && (
                 <>
+                <Button
+                  variant="outline"
+                  onClick={() => cloneFromPrevYear.mutate()}
+                  disabled={cloneFromPrevYear.isPending}
+                  title={`Clone holidays from ${selectedYear - 1}`}
+                >
+                  {cloneFromPrevYear.isPending
+                    ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    : <Copy className="h-4 w-4 mr-1" />}
+                  Clone {selectedYear - 1}
+                </Button>
                 <BulkUploadDialog config={holidaysBulkConfig} />
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                   <DialogTrigger asChild>
