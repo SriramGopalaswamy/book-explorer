@@ -80,6 +80,7 @@ import { getInvoicePdfSignedUrl } from "@/hooks/useAadhaarSign";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useNavigate } from "react-router-dom";
+import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 import { WorkflowStatus } from "@/components/financial/WorkflowStatus";
@@ -194,6 +195,9 @@ export default function Invoicing() {
   const { data: orgData } = useUserOrganization();
   const { compliance } = useOnboardingCompliance();
   const orgState = compliance?.state ?? null;
+  // GBC-107: open fiscal periods for date-picker enforcement
+  const { data: openPeriods } = useOpenFiscalPeriods();
+  const periodBounds = openPeriodBounds(openPeriods);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
@@ -315,6 +319,11 @@ export default function Invoicing() {
       toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
       return;
     }
+    // GBC-107: block invoices outside any open fiscal period
+    if (!isDateInOpenPeriod(formMeta.invoiceDate, openPeriods)) {
+      toast({ title: "Closed period", description: "Selected invoice date is in a closed fiscal period", variant: "destructive" });
+      return;
+    }
 
     const interstate = isInterstateSupply(formMeta.placeOfSupply, orgState);
     const { computed, subtotal, cgstTotal, sgstTotal, igstTotal, total } = calculateLineItemTotals(lineItems, interstate);
@@ -405,6 +414,11 @@ export default function Invoicing() {
     }
     if (!editFormMeta.dueDate || editLineItems.some(item => !item.rate)) {
       toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
+      return;
+    }
+    // GBC-107: block invoice edits that move date into a closed period
+    if (!isDateInOpenPeriod(editFormMeta.invoiceDate, openPeriods)) {
+      toast({ title: "Closed period", description: "Selected invoice date is in a closed fiscal period", variant: "destructive" });
       return;
     }
 
@@ -678,7 +692,8 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-3 gap-4">
                       <div className="grid gap-2">
                         <Label>Invoice Date *</Label>
-                        <Input type="date" value={formMeta.invoiceDate} onChange={e => setFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                        <Input type="date" min={periodBounds.min} max={periodBounds.max} value={formMeta.invoiceDate} onChange={e => setFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                        <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
                       </div>
                       <div className="grid gap-2">
                         <Label>Due Date *</Label>
@@ -773,7 +788,8 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-3 gap-4">
                       <div className="grid gap-2">
                         <Label>Invoice Date *</Label>
-                        <Input type="date" value={editFormMeta.invoiceDate} onChange={e => setEditFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                        <Input type="date" min={periodBounds.min} max={periodBounds.max} value={editFormMeta.invoiceDate} onChange={e => setEditFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                        <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
                       </div>
                       <div className="grid gap-2">
                         <Label>Due Date *</Label>

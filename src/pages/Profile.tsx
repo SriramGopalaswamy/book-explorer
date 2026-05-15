@@ -115,9 +115,13 @@ export default function Profile() {
   const [phone, setPhone] = useState("");
 
   // Password change form
+  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  // GBC-105: detect OAuth/MS365 users — they cannot change password here
+  const authProvider = (user?.app_metadata as any)?.provider as string | undefined;
+  const isPasswordAuth = !authProvider || authProvider === "email";
 
   // Change request dialog
   const [changeDialogOpen, setChangeDialogOpen] = useState(false);
@@ -204,7 +208,7 @@ export default function Profile() {
 
   const handlePasswordUpdate = async () => {
     setPasswordError("");
-    if (!newPassword || !confirmPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       setPasswordError("Please fill in all password fields");
       return;
     }
@@ -216,13 +220,27 @@ export default function Profile() {
       setPasswordError("Passwords do not match");
       return;
     }
+    if (!user?.email) {
+      setPasswordError("Missing account email");
+      return;
+    }
     setIsUpdating(true);
     try {
+      // GBC-105: re-authenticate with current password before allowing change
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) {
+        setPasswordError("Current password is incorrect");
+        return;
+      }
       const { error } = await updatePassword(newPassword);
       if (error) {
         setPasswordError(error.message);
       } else {
         toast.success("Password updated successfully");
+        setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       }
@@ -599,8 +617,8 @@ export default function Profile() {
                       <DetailRow label="Employee ID" value={details?.employee_id_number} section="bank" fieldKey="employee_id_number" />
                       <DetailRow label="PAN Number" value={details?.pan_number ? details.pan_number.slice(0, 2) + "••••" + details.pan_number.slice(-2) : null} section="bank" fieldKey="pan_number" />
                       <DetailRow label="Aadhaar (last 4)" value={details?.aadhaar_last_four ? "••••" + details.aadhaar_last_four : null} section="bank" fieldKey="aadhaar_last_four" />
-                      <DetailRow label="UAN Number" value={details?.uan_number} section="bank" fieldKey="uan_number" />
-                      <DetailRow label="ESI Number" value={details?.esi_number} section="bank" fieldKey="esi_number" />
+                      <DetailRow label="UAN Number" value={details?.uan_number ? "••••••••" + details.uan_number.slice(-4) : null} section="bank" fieldKey="uan_number" />
+                      <DetailRow label="ESI Number" value={details?.esi_number ? "••••••••" + details.esi_number.slice(-4) : null} section="bank" fieldKey="esi_number" />
                     </>
                   )}
                 </CardContent>
@@ -740,24 +758,48 @@ export default function Profile() {
                     <CardDescription>Update your password to keep your account secure</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {passwordError && (
-                      <Alert variant="destructive">
+                    {!isPasswordAuth ? (
+                      <Alert>
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{passwordError}</AlertDescription>
+                        <AlertDescription>
+                          Your password is managed by Microsoft 365.{" "}
+                          <a
+                            href="https://account.microsoft.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline font-medium"
+                          >
+                            Manage it on account.microsoft.com
+                          </a>
+                          .
+                        </AlertDescription>
                       </Alert>
+                    ) : (
+                      <>
+                        {passwordError && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{passwordError}</AlertDescription>
+                          </Alert>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="current-password">Current Password</Label>
+                          <Input id="current-password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" autoComplete="current-password" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password">New Password</Label>
+                          <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" autoComplete="new-password" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-password">Confirm Password</Label>
+                          <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" autoComplete="new-password" />
+                        </div>
+                        <Button onClick={handlePasswordUpdate} disabled={isUpdating} className="w-full rounded-xl">
+                          <Lock className="mr-2 h-4 w-4" />
+                          {isUpdating ? "Updating..." : "Update Password"}
+                        </Button>
+                      </>
                     )}
-                    <div className="space-y-2">
-                      <Label htmlFor="new-password">New Password</Label>
-                      <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirm Password</Label>
-                      <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
-                    </div>
-                    <Button onClick={handlePasswordUpdate} disabled={isUpdating} className="w-full rounded-xl">
-                      <Lock className="mr-2 h-4 w-4" />
-                      {isUpdating ? "Updating..." : "Update Password"}
-                    </Button>
                   </CardContent>
                 </Card>
               </div>

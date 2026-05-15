@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { toast } from "sonner";
 
@@ -372,6 +373,9 @@ export default function Bills() {
   const { data: isFinance, isLoading: roleLoading } = useIsFinance();
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
+  // GBC-107: open fiscal periods for date-picker enforcement
+  const { data: openPeriods } = useOpenFiscalPeriods();
+  const periodBounds = openPeriodBounds(openPeriods);
 
   // List state
   const [search, setSearch] = useState("");
@@ -469,7 +473,10 @@ export default function Bills() {
       // ── Fiscal period guard ──
       const { validateFiscalPeriod } = await import("@/lib/fiscal-period-guard");
       await validateFiscalPeriod(form.bill_date);
-
+      // GBC-107: granular open-period check against fiscal_periods table
+      if (!isDateInOpenPeriod(form.bill_date, openPeriods)) {
+        throw new Error("Selected date is in a closed fiscal period");
+      }
       const subtotal = parseFloat(form.amount) || 0;
       const tax = parseFloat(form.tax_amount) || 0;
       const total = subtotal + tax;
@@ -1226,9 +1233,12 @@ export default function Bills() {
                 <Label>Bill Date</Label>
                 <Input
                   type="date"
+                  min={periodBounds.min}
+                  max={periodBounds.max}
                   value={form.bill_date}
                   onChange={(e) => setForm((p) => ({ ...p, bill_date: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
               </div>
 
               <div className="space-y-1.5">

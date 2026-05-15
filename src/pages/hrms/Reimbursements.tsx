@@ -46,6 +46,7 @@ import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
 
 const EXPENSE_CATEGORIES = [
   "Travel & Transport",
@@ -77,6 +78,9 @@ function statusConfig(status: string) {
 
 export default function Reimbursements() {
   const { user } = useAuth();
+  // GBC-107: open fiscal periods for date-picker enforcement
+  const { data: openPeriods } = useOpenFiscalPeriods();
+  const periodBounds = openPeriodBounds(openPeriods);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -263,6 +267,11 @@ export default function Reimbursements() {
     }
     if (!form.vendor_name || !form.amount || !form.category || !form.description) {
       toast.error("Please fill in all required fields.");
+      return;
+    }
+    // GBC-107: block submissions outside any open fiscal period
+    if (form.expense_date && !isDateInOpenPeriod(form.expense_date, openPeriods)) {
+      toast.error("Selected expense date is in a closed fiscal period.");
       return;
     }
 
@@ -608,9 +617,12 @@ export default function Reimbursements() {
                   <Label>Expense Date</Label>
                   <Input
                     type="date"
+                    min={periodBounds.min}
+                    max={periodBounds.max}
                     value={form.expense_date}
                     onChange={(e) => setForm((f) => ({ ...f, expense_date: e.target.value }))}
                   />
+                  <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category <span className="text-red-400">*</span></Label>
