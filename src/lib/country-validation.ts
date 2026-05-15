@@ -61,6 +61,7 @@ export const COUNTRY_PHONE_CONFIG: Record<string, CountryPhoneConfig> = {
   "Czech Republic": { code: "+420", digits: 9, label: "9-digit number" },
   "Romania": { code: "+40", digits: 9, label: "9-digit number" },
   "Hungary": { code: "+36", digits: 9, label: "9-digit number" },
+  "Vietnam": { code: "+84", digits: 9, label: "9-10 digit number" },
 };
 
 export const COUNTRY_TAX_CONFIG: Record<string, CountryTaxConfig> = {
