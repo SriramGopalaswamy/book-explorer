@@ -269,6 +269,11 @@ export default function Reimbursements() {
       toast.error("Please fill in all required fields.");
       return;
     }
+    // GBC-107: block submissions outside any open fiscal period
+    if (form.expense_date && !isDateInOpenPeriod(form.expense_date, openPeriods)) {
+      toast.error("Selected expense date is in a closed fiscal period.");
+      return;
+    }
 
     setSubmitting(true);
     try {
