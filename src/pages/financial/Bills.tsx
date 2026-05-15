@@ -377,6 +377,18 @@ export default function Bills() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // Bulk pay state (GBC-86)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkPayOpen, setBulkPayOpen] = useState(false);
+  const [bulkPay, setBulkPay] = useState({
+    payment_date: new Date().toISOString().split("T")[0],
+    payment_method: "bank_transfer",
+    bank_account_id: "",
+    reference_number: "",
+  });
+  const [bulkPaying, setBulkPaying] = useState(false);
+  const { data: bankAccounts = [] } = useBankAccounts();
+
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBillId, setEditingBillId] = useState<string | null>(null);
