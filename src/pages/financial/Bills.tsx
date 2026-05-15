@@ -971,6 +971,29 @@ export default function Bills() {
               <Table>
                 <TableHeader>
                   <TableRow className="border-border/50 hover:bg-transparent">
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={
+                          pagination.paginatedItems.length > 0 &&
+                          pagination.paginatedItems.every((b: any) =>
+                            selectedIds.has(b.id) || !(b.status === "received" || b.effectiveStatus === "overdue")
+                          ) &&
+                          pagination.paginatedItems.some((b: any) => selectedIds.has(b.id))
+                        }
+                        onCheckedChange={(v) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            for (const b of pagination.paginatedItems as any[]) {
+                              const payable = b.status === "received" || b.effectiveStatus === "overdue";
+                              if (!payable) continue;
+                              if (v) next.add(b.id); else next.delete(b.id);
+                            }
+                            return next;
+                          });
+                        }}
+                        aria-label="Select all payable bills on this page"
+                      />
+                    </TableHead>
                     <TableHead className="text-xs">Bill #</TableHead>
                     <TableHead className="text-xs">Vendor</TableHead>
                     <TableHead className="text-xs">Sub-total</TableHead>
@@ -983,8 +1006,24 @@ export default function Bills() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pagination.paginatedItems.map((b: any) => (
+                  {pagination.paginatedItems.map((b: any) => {
+                    const payable = b.status === "received" || b.effectiveStatus === "overdue";
+                    return (
                     <TableRow key={b.id} className="border-border/30 hover:bg-muted/20">
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedIds.has(b.id)}
+                          disabled={!payable}
+                          onCheckedChange={(v) => {
+                            setSelectedIds((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(b.id); else next.delete(b.id);
+                              return next;
+                            });
+                          }}
+                          aria-label={`Select bill ${b.bill_number}`}
+                        />
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1.5">
                           <span className="font-mono text-sm text-foreground">{b.bill_number}</span>
