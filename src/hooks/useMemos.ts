@@ -509,30 +509,31 @@ export function useDirectReportsPendingMemos() {
     queryKey: ["pending-memos-for-manager", user?.id, isDevMode],
     queryFn: async () => {
       if (isDevMode || !user) return [] as Memo[];
-      
-      // Get manager's profile_id
+
+      // Resolve caller org for tenant isolation
       const { data: myProfile } = await supabase
         .from("profiles")
-        .select("id")
+        .select("id, organization_id")
         .eq("user_id", user.id)
-        .single();
-      
-      if (!myProfile) return [] as Memo[];
+        .maybeSingle();
+      if (!myProfile?.organization_id) return [] as Memo[];
 
       // Get direct reports
       const { data: reports } = await supabase
         .from("profiles")
         .select("user_id")
         .eq("manager_id", myProfile.id)
+        .eq("organization_id", myProfile.organization_id)
         .not("user_id", "is", null);
 
       if (!reports || reports.length === 0) return [] as Memo[];
-      
+
       const reportUserIds = reports.map(r => r.user_id).filter(Boolean);
 
       const { data, error } = await supabase
         .from("memos")
         .select("*")
+        .eq("organization_id", myProfile.organization_id)
         .eq("status", "pending_approval")
         .in("user_id", reportUserIds)
         .order("created_at", { ascending: false });
