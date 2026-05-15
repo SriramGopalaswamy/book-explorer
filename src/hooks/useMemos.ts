@@ -587,20 +587,22 @@ export function useDeleteMemo() {
   return useMutation({
     mutationFn: async (id: string) => {
       if (!user) throw new Error("Not authenticated");
+
+      // Resolve caller org first for tenant-scoped lookup
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
       // Block deletion of published memos (permanent record)
       const { data: memo, error: fetchErr } = await supabase
         .from("memos")
         .select("status")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (fetchErr || !memo) throw fetchErr || new Error("Memo not found.");
       if ((memo as any).status === "published") {
         throw new Error("Published memos cannot be deleted. They are part of the official record.");
       }
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user?.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { error } = await supabase.from("memos").delete().eq("id", id).eq("organization_id", callerProfile.organization_id);
       if (error) throw error;
