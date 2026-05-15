@@ -650,11 +650,15 @@ export default function OrgChart() {
       if (!user) return [] as RawProfile[];
       const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
       if (!callerProfile?.organization_id) return [] as RawProfile[];
+      // Bulk load capped at 500 — for orgs above this size, switch
+      // to incremental rendering via useDirectReports (GBC-75).
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, department, job_title, avatar_url, manager_id, status, email, phone, join_date")
         .eq("organization_id", callerProfile.organization_id)
-        .order("full_name");
+        .eq("is_deleted", false)
+        .order("full_name")
+        .limit(500);
       if (error) throw error;
       return data as RawProfile[];
     },
