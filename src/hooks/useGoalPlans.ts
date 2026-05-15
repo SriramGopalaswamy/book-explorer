@@ -87,58 +87,68 @@ function toGoalPlanArr(rows: unknown): GoalPlan[] {
 
 export function useMyGoalPlans() {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
   return useQuery({
-    queryKey: ["goal-plans", "my", user?.id],
+    queryKey: ["goal-plans", "my", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [] as GoalPlan[];
+      if (!user || !orgId) return [] as GoalPlan[];
       const { data, error } = await supabase
         .from("goal_plans")
         .select("*")
         .eq("user_id", user.id)
+        .eq("organization_id", orgId)
         .order("month", { ascending: false });
       if (error) throw error;
       return toGoalPlanArr(data || []);
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
 export function useGoalPlan(month: string) {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
   return useQuery({
-    queryKey: ["goal-plan", month, user?.id],
+    queryKey: ["goal-plan", month, user?.id, orgId],
     queryFn: async () => {
-      if (!user || !month) return null;
+      if (!user || !month || !orgId) return null;
       const { data, error } = await supabase
         .from("goal_plans")
         .select("*")
         .eq("user_id", user.id)
+        .eq("organization_id", orgId)
         .eq("month", month)
         .maybeSingle();
       if (error) throw error;
       return data ? toGoalPlan(data) : null;
     },
-    enabled: !!user && !!month,
+    enabled: !!user && !!month && !!orgId,
   });
 }
 
 export function useDirectReportsPendingGoalPlans() {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
   return useQuery({
-    queryKey: ["direct-reports-goal-plans", user?.id],
+    queryKey: ["direct-reports-goal-plans", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [] as GoalPlanWithProfile[];
+      if (!user || !orgId) return [] as GoalPlanWithProfile[];
       const { data: myProfile } = await supabase
         .from("profiles")
         .select("id")
         .eq("user_id", user.id)
+        .eq("organization_id", orgId)
         .maybeSingle();
       if (!myProfile) return [] as GoalPlanWithProfile[];
 
       const { data: reports } = await supabase
         .from("profiles")
         .select("id, user_id, full_name, department")
-        .eq("manager_id", myProfile.id);
+        .eq("manager_id", myProfile.id)
+        .eq("organization_id", orgId);
       if (!reports || reports.length === 0) return [] as GoalPlanWithProfile[];
 
       const reportUserIds = reports.map((r) => r.user_id);
@@ -147,6 +157,7 @@ export function useDirectReportsPendingGoalPlans() {
         .from("goal_plans")
         .select("*")
         .in("user_id", reportUserIds)
+        .eq("organization_id", orgId)
         .in("status", ["pending_approval", "pending_edit_approval", "pending_score_approval"])
         .order("updated_at", { ascending: false });
 
@@ -158,7 +169,7 @@ export function useDirectReportsPendingGoalPlans() {
         _profile: profileMap[plan.user_id] || null,
       })) as GoalPlanWithProfile[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
@@ -167,14 +178,17 @@ export function useDirectReportsPendingGoalPlans() {
  */
 export function useHRPendingGoalPlans() {
   const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
   return useQuery({
-    queryKey: ["hr-pending-goal-plans", user?.id],
+    queryKey: ["hr-pending-goal-plans", user?.id, orgId],
     queryFn: async () => {
-      if (!user) return [] as GoalPlanWithProfile[];
+      if (!user || !orgId) return [] as GoalPlanWithProfile[];
 
       const { data, error } = await supabase
         .from("goal_plans")
         .select("*")
+        .eq("organization_id", orgId)
         .eq("status", "pending_hr_approval")
         .order("updated_at", { ascending: false });
 
@@ -187,6 +201,7 @@ export function useHRPendingGoalPlans() {
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, user_id, full_name, department")
+        .eq("organization_id", orgId)
         .in("user_id", userIds);
 
       const profileMap = Object.fromEntries((profiles || []).map((r) => [r.user_id, r]));
@@ -195,7 +210,7 @@ export function useHRPendingGoalPlans() {
         _profile: profileMap[plan.user_id] || null,
       })) as GoalPlanWithProfile[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
