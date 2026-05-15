@@ -163,7 +163,8 @@ export function usePayrollRecords(payPeriod?: string) {
           const { data, error } = await supabase
             .from("payroll_entries")
             .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
-            .eq("payroll_run_id", runRow.id);
+            .eq("payroll_run_id", runRow.id)
+            .neq("status", "superseded"); // GBC-120
           if (error) throw error;
           engineData = (data ?? []).map((e: any) => ({ ...e, payroll_runs: runRow }));
         }
@@ -173,6 +174,7 @@ export function usePayrollRecords(payPeriod?: string) {
           .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
           .eq("organization_id", orgId)
           .not("payroll_runs.pay_period", "is", null)
+          .neq("status", "superseded") // GBC-120
           .order("created_at", { ascending: false });
         if (error) throw error;
         engineData = data ?? [];

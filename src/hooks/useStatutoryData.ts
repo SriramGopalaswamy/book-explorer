@@ -92,7 +92,8 @@ async function fetchDualSourceStatutoryPayroll(
         `id, profile_id, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, status, payroll_run_id, profiles!profile_id(${profileSelect})`
       )
       .in("payroll_run_id", runIds)
-      .in("status", statuses);
+      .in("status", statuses)
+      .neq("status", "superseded"); // GBC-120: exclude superseded rows from statutory aggregates
     engineRows = (entries ?? []).map((e: any) =>
       normalizeEngineStatutory(e, runMap.get(e.payroll_run_id) ?? "")
     );

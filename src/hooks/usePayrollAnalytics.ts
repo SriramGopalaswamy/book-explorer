@@ -49,7 +49,8 @@ export function usePayrollAnalytics() {
       const { data: entries } = await supabase
         .from("payroll_entries")
         .select("*, profiles!profile_id(full_name, department, job_title)")
-        .in("payroll_run_id", runIds.length > 0 ? runIds : ["none"]);
+        .in("payroll_run_id", runIds.length > 0 ? runIds : ["none"])
+        .neq("status", "superseded"); // GBC-120: exclude superseded rows from analytics
 
       const allEntries = entries ?? [];
       const allRuns = runs ?? [];
