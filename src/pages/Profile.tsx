@@ -758,24 +758,48 @@ export default function Profile() {
                     <CardDescription>Update your password to keep your account secure</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {passwordError && (
-                      <Alert variant="destructive">
+                    {!isPasswordAuth ? (
+                      <Alert>
                         <AlertCircle className="h-4 w-4" />
-                        <AlertDescription>{passwordError}</AlertDescription>
+                        <AlertDescription>
+                          Your password is managed by Microsoft 365.{" "}
+                          <a
+                            href="https://account.microsoft.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline font-medium"
+                          >
+                            Manage it on account.microsoft.com
+                          </a>
+                          .
+                        </AlertDescription>
                       </Alert>
+                    ) : (
+                      <>
+                        {passwordError && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>{passwordError}</AlertDescription>
+                          </Alert>
+                        )}
+                        <div className="space-y-2">
+                          <Label htmlFor="current-password">Current Password</Label>
+                          <Input id="current-password" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} placeholder="Enter current password" autoComplete="current-password" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="new-password">New Password</Label>
+                          <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" autoComplete="new-password" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-password">Confirm Password</Label>
+                          <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" autoComplete="new-password" />
+                        </div>
+                        <Button onClick={handlePasswordUpdate} disabled={isUpdating} className="w-full rounded-xl">
+                          <Lock className="mr-2 h-4 w-4" />
+                          {isUpdating ? "Updating..." : "Update Password"}
+                        </Button>
+                      </>
                     )}
-                    <div className="space-y-2">
-                      <Label htmlFor="new-password">New Password</Label>
-                      <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Enter new password" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="confirm-password">Confirm Password</Label>
-                      <Input id="confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirm new password" />
-                    </div>
-                    <Button onClick={handlePasswordUpdate} disabled={isUpdating} className="w-full rounded-xl">
-                      <Lock className="mr-2 h-4 w-4" />
-                      {isUpdating ? "Updating..." : "Update Password"}
-                    </Button>
                   </CardContent>
                 </Card>
               </div>
