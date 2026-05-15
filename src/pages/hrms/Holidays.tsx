@@ -209,6 +209,16 @@ export default function Holidays() {
   return (
     <MainLayout title="Holidays" subtitle="Company holiday calendar">
       <div className="space-y-6">
+        {staleRuns.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Payroll working days are out of date</AlertTitle>
+            <AlertDescription>
+              {staleRuns.length} open payroll run{staleRuns.length === 1 ? "" : "s"} ({staleRuns.map((r: any) => r.pay_period).join(", ")})
+              {" "}need recalculation because holidays in those months changed. Open the payroll run to recalculate.
+            </AlertDescription>
+          </Alert>
+        )}
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
