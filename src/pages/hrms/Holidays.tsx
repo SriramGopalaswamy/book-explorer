@@ -118,8 +118,58 @@ export default function Holidays() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const filtered = useMemo(() =>
-    holidays.filter((h) => {
+  // GBC-74: surface stale payroll runs (working_days_stale=true)
+  const { data: staleRuns = [] } = useQuery({
+    queryKey: ["payroll-runs-stale", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from("payroll_runs")
+        .select("id, pay_period, status, working_days_stale")
+        .eq("organization_id", orgId)
+        .eq("working_days_stale", true)
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!orgId,
+  });
+
+  // GBC-74: clone holidays from previous year
+  const cloneFromPrevYear = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("No organization found");
+      const prevYear = selectedYear - 1;
+      const { data: prev, error: prevErr } = await supabase
+        .from("holidays")
+        .select("name, date")
+        .eq("organization_id", orgId)
+        .eq("year", prevYear)
+        .order("date");
+      if (prevErr) throw prevErr;
+      if (!prev || prev.length === 0) {
+        throw new Error(`No holidays found in ${prevYear} to clone.`);
+      }
+      const cloned = prev.map((h) => {
+        const d = new Date(h.date);
+        d.setFullYear(selectedYear);
+        return {
+          name: h.name,
+          date: d.toISOString().split("T")[0],
+          year: selectedYear,
+          organization_id: orgId,
+        };
+      });
+      const { error } = await supabase.from("holidays").insert(cloned);
+      if (error) throw error;
+      return cloned.length;
+    },
+    onSuccess: (count) => {
+      qc.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success(`Cloned ${count} holidays from ${selectedYear - 1}`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
       const q = searchQuery.toLowerCase();
       return !q || h.name.toLowerCase().includes(q);
     }),
