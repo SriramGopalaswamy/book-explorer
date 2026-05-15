@@ -934,6 +934,16 @@ export default function Bills() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          {selectedIds.size > 0 && (
+            <Button
+              variant="secondary"
+              className="gap-2 shrink-0"
+              onClick={() => setBulkPayOpen(true)}
+            >
+              <Wallet className="h-4 w-4" />
+              Pay Selected ({selectedIds.size})
+            </Button>
+          )}
           <Button onClick={openDialog} className="gap-2 shrink-0">
             <ScanLine className="h-4 w-4" />
             Scan / Add Bill
