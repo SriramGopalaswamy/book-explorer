@@ -39,6 +39,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { toast } from "sonner";
 
