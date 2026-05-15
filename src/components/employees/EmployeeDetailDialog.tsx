@@ -482,10 +482,10 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   {renderField("Employee ID", details?.employee_id_number)}
-                  {renderField("PAN Number", details?.pan_number)}
-                  {renderField("Aadhaar (Last 4)", details?.aadhaar_last_four)}
-                  {renderField("UAN", details?.uan_number)}
-                  {renderField("ESI Number", details?.esi_number)}
+                  {renderField("PAN Number", details?.pan_number ? details.pan_number.slice(0, 2) + "••••" + details.pan_number.slice(-2) : null)}
+                  {renderField("Aadhaar (Last 4)", details?.aadhaar_last_four ? "••••" + details.aadhaar_last_four : null)}
+                  {renderField("UAN", details?.uan_number ? "••••••••" + details.uan_number.slice(-4) : null)}
+                  {renderField("ESI Number", details?.esi_number ? "••••••••" + details.esi_number.slice(-4) : null)}
                 </div>
               </div>
             </TabsContent>
