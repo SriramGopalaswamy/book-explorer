@@ -78,6 +78,9 @@ function statusConfig(status: string) {
 
 export default function Reimbursements() {
   const { user } = useAuth();
+  // GBC-107: open fiscal periods for date-picker enforcement
+  const { data: openPeriods } = useOpenFiscalPeriods();
+  const periodBounds = openPeriodBounds(openPeriods);
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
