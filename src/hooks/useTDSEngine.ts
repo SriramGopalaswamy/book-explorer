@@ -175,13 +175,13 @@ export function useApproveDeclaration() {
       if (!currentUser) throw new Error("Not authenticated");
 
       // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", currentUser.id).maybeSingle();
+      const { data: callerProfile } = await supabase.from("profiles").select("id, organization_id").eq("user_id", currentUser.id).maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       // Verify current status is submitted (org-scoped lookup)
       const { data: decl } = await supabase
         .from("investment_declarations")
-        .select("status, declared_amount, user_id")
+        .select("status, declared_amount, profile_id")
         .eq("id", id)
         .eq("organization_id", callerProfile.organization_id)
         .single();
@@ -191,8 +191,8 @@ export function useApproveDeclaration() {
         throw new Error("Approved amount cannot exceed declared amount");
       }
 
-      // Self-approval guard
-      if ((decl as any)?.user_id === currentUser.id) {
+      // Self-approval guard (compare profile_id, not user_id)
+      if (decl.profile_id === callerProfile.id) {
         throw new Error("You cannot approve your own investment declaration.");
       }
 
