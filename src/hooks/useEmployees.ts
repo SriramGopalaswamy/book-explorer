@@ -275,8 +275,13 @@ export function useCreateEmployee() {
       queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
       toast.success("Employee added. They can sign in with their email address.");
     },
-    onError: (error) => {
-      toast.error(error.message);
+    onError: (error: any) => {
+      const msg = String(error?.message ?? "");
+      if (msg.includes("CIRCULAR_MANAGER")) {
+        toast.error("Cannot set this manager — it would create a circular reporting chain.");
+        return;
+      }
+      toast.error(msg);
     },
   });
 }
