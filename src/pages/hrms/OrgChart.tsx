@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   GitBranch, Users, ShieldAlert, Building2,
   ChevronDown, ChevronRight, Search, ZoomIn, ZoomOut,
-  Maximize2, X, Mail, Phone, CalendarDays, Expand, RefreshCw,
+  Maximize2, X, Mail, Phone, CalendarDays, Expand, RefreshCw, Cloud,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import { invokeEdge } from "@/lib/invoke-edge";
+import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────
 interface RawProfile {
@@ -65,6 +67,17 @@ function deptHsl(dept: string | null) {
 }
 function deptColor(dept: string | null) {
   return `hsl(${deptHsl(dept)})`;
+}
+
+// ─── MS365 staleness helper ───────────────────────────────────────────
+function ms365SyncAge(lastSyncAt: string | null): { label: string; stale: boolean } {
+  if (!lastSyncAt) return { label: "Never synced", stale: true };
+  const diffMs = Date.now() - new Date(lastSyncAt).getTime();
+  const diffH = diffMs / (1000 * 60 * 60);
+  const diffM = Math.floor(diffMs / (1000 * 60));
+  if (diffH >= 2) return { label: `${Math.floor(diffH)}h ago`, stale: true };
+  if (diffM >= 1) return { label: `${diffM}m ago`, stale: false };
+  return { label: "Just now", stale: false };
 }
 
 // ─── Tree builder ─────────────────────────────────────────────────────
@@ -676,6 +689,43 @@ export default function OrgChart() {
     queryClient.invalidateQueries({ queryKey: ["org-chart-profiles"] });
   };
 
+  // MS365 last-sync timestamp — separate query so it updates independently
+  const { data: lastSyncAt = null, refetch: refetchSyncTime } = useQuery({
+    queryKey: ["org-ms365-last-sync", user?.id],
+    queryFn: async () => {
+      if (!user) return null;
+      const { data: callerProfile } = await supabase
+        .from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      if (!callerProfile?.organization_id) return null;
+      const { data } = await supabase
+        .from("organization_settings")
+        .select("last_ms365_sync_at")
+        .eq("organization_id", callerProfile.organization_id)
+        .maybeSingle();
+      return data?.last_ms365_sync_at ?? null;
+    },
+    enabled: !isDevMode && !!user,
+    staleTime: 60 * 1000,
+  });
+
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncMS365 = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await invokeEdge("ms365-sync", { body: { action: "sync_managers" } });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "MS365 sync failed");
+      } else {
+        toast.success(`MS365 sync complete — ${data.synced} manager assignment(s) updated.`);
+        queryClient.invalidateQueries({ queryKey: ["org-chart-profiles"] });
+        refetchSyncTime();
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const tree = useMemo(() => buildTree(profiles), [profiles]);
 
   const deptCounts = useMemo(() => {
@@ -711,21 +761,52 @@ export default function OrgChart() {
   return (
     <MainLayout title="Organization Chart" subtitle="Company hierarchy and reporting structure">
       <div className="space-y-5 h-full">
-        {/* Last-refreshed + manual refresh */}
-        <div className="flex items-center justify-end gap-2">
-          {dataUpdatedAt > 0 && (
-            <span className="text-xs text-muted-foreground">
-              Updated {new Date(dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-            </span>
-          )}
-          <button
-            onClick={handleRefresh}
-            disabled={isFetching}
-            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-            {isFetching ? "Refreshing…" : "Refresh"}
-          </button>
+        {/* Status bar: MS365 sync (left) · local refresh (right) */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+
+          {/* MS365 sync status — admin only */}
+          {isAdmin && !isDevMode && (() => {
+            const { label, stale } = ms365SyncAge(lastSyncAt);
+            return (
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium",
+                  stale
+                    ? "border-amber-400/60 bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400"
+                    : "border-green-400/40 bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400"
+                )}>
+                  <Cloud className="h-3.5 w-3.5 flex-shrink-0" />
+                  MS365 · {label}
+                  {stale && <span className="ml-0.5">⚠</span>}
+                </div>
+                <button
+                  onClick={handleSyncMS365}
+                  disabled={isSyncing}
+                  className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
+                  {isSyncing ? "Syncing…" : "Sync from MS365"}
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* Local cache refresh (right) */}
+          <div className="flex items-center gap-2 ml-auto">
+            {dataUpdatedAt > 0 && (
+              <span className="text-xs text-muted-foreground">
+                Updated {new Date(dataUpdatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+            <button
+              onClick={handleRefresh}
+              disabled={isFetching}
+              className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground shadow-sm hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+              {isFetching ? "Refreshing…" : "Refresh"}
+            </button>
+          </div>
         </div>
         {/* Stats row */}
         <div className="grid gap-4 md:grid-cols-3">
