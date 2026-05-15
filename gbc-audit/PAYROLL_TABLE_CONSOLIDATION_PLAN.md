@@ -113,3 +113,28 @@ Phase 3: ~1 day (backfill + validation).
 Phase 4: ~2 days (reader rewrites + cycle wait).
 
 Total: ~1 sprint over 3–4 weeks.
+
+---
+
+## Phase 4 — DONE (2026-05-15)
+
+Legacy `payroll_records` SELECT branches retired from active read paths:
+
+| File | Change |
+|---|---|
+| `src/hooks/usePayroll.ts` (`usePayrollRecords`) | Dropped legacy fetch + de-dup merge — engine-only |
+| `src/hooks/usePayroll.ts` (`useMyPayrollRecords`) | Dropped legacy parallel fetch — engine-only |
+| `src/hooks/useStatutoryData.ts` (`fetchDualSourceStatutoryPayroll`) | Dropped legacy SELECT — engine-only |
+| `src/hooks/usePayrollEngine.ts` (run fallback) | Removed legacy resurrection path; engine now requires compensation_structures (or bulk upload) |
+
+**Retained** (intentional, by-id legacy access for old URLs/links):
+- `usePayroll.ts` legacy UPDATE/DELETE handlers (lines 486–640) — operate on legacy ids only.
+- `usePayslipDisputes.ts:381` — supersede mark on resolved disputes that referenced a legacy `payroll_record_id`.
+- `payroll-dispute-utils.ts` — fallback display for historical disputes.
+
+**Validation:** active legacy rows = 0; `payroll_records_write_log` = 0 inserts since trigger went live; engine-only readers exercised via Register, MyPayslips, Statutory exports, and Engine run dispatcher.
+
+**Phase 5 (deferred):** after one full payroll cycle (June 2026 close) with read-log silence on the remaining by-id handlers, archive table:
+```sql
+ALTER TABLE payroll_records RENAME TO _archived_payroll_records_2026;
+```
