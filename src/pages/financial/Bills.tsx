@@ -1540,6 +1540,78 @@ export default function Bills() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* ════════════ Bulk Pay Dialog (GBC-86) ════════════ */}
+      <Dialog open={bulkPayOpen} onOpenChange={(v) => { if (!bulkPaying) setBulkPayOpen(v); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-primary" /> Pay Selected Bills
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const targets = bills.filter((b: any) => selectedIds.has(b.id));
+                const total = targets.reduce((s: number, b: any) => s + Number(b.total_amount || 0), 0);
+                return `${targets.length} bill${targets.length === 1 ? "" : "s"} • Total ${fmt(total)}`;
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Bank Account</Label>
+              <Select value={bulkPay.bank_account_id} onValueChange={(v) => setBulkPay((p) => ({ ...p, bank_account_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select bank account…" /></SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>{a.bank_name} — {a.account_number}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Payment Method</Label>
+                <Select value={bulkPay.payment_method} onValueChange={(v) => setBulkPay((p) => ({ ...p, payment_method: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                    <SelectItem value="cheque">Cheque</SelectItem>
+                    <SelectItem value="upi">UPI</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                    <SelectItem value="card">Card</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Payment Date</Label>
+                <Input type="date" value={bulkPay.payment_date} onChange={(e) => setBulkPay((p) => ({ ...p, payment_date: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Reference Number (optional)</Label>
+              <Input
+                placeholder="e.g. UTR / cheque #"
+                value={bulkPay.reference_number}
+                onChange={(e) => setBulkPay((p) => ({ ...p, reference_number: e.target.value }))}
+              />
+            </div>
+            <div className="rounded border border-border/50 bg-muted/20 p-2 max-h-32 overflow-y-auto text-xs space-y-1">
+              {bills.filter((b: any) => selectedIds.has(b.id)).map((b: any) => (
+                <div key={b.id} className="flex justify-between">
+                  <span className="font-mono">{b.bill_number}</span>
+                  <span>{fmt(Number(b.total_amount))}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkPayOpen(false)} disabled={bulkPaying}>Cancel</Button>
+            <Button onClick={runBulkPay} disabled={bulkPaying || !bulkPay.bank_account_id}>
+              {bulkPaying ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Paying…</> : <>Confirm Payment</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }
