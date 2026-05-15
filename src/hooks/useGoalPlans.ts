@@ -262,12 +262,16 @@ export function useCreateGoalPlan() {
 
 export function useSaveGoalPlanDraft() {
   const queryClient = useQueryClient();
+  const { data: org } = useUserOrganization();
   return useMutation({
     mutationFn: async ({ planId, items }: { planId: string; items: GoalItem[] }) => {
+      const orgId = org?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
       const { error } = await supabase
         .from("goal_plans")
         .update({ items: items as unknown as any })
-        .eq("id", planId);
+        .eq("id", planId)
+        .eq("organization_id", orgId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -281,12 +285,16 @@ export function useSaveGoalPlanDraft() {
 
 export function useSubmitGoalPlan() {
   const queryClient = useQueryClient();
+  const { data: org } = useUserOrganization();
   return useMutation({
     mutationFn: async ({ planId, items }: { planId: string; items: GoalItem[] }) => {
+      const orgId = org?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
       const { data, error } = await supabase
         .from("goal_plans")
         .update({ status: "pending_approval", items: items as unknown as any })
         .eq("id", planId)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
@@ -308,12 +316,16 @@ export function useSubmitGoalPlan() {
 
 export function useSubmitGoalEdit() {
   const queryClient = useQueryClient();
+  const { data: org } = useUserOrganization();
   return useMutation({
     mutationFn: async ({ planId, items }: { planId: string; items: GoalItem[] }) => {
+      const orgId = org?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
       const { data, error } = await supabase
         .from("goal_plans")
         .update({ status: "pending_edit_approval", items: items as unknown as any })
         .eq("id", planId)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
@@ -335,12 +347,16 @@ export function useSubmitGoalEdit() {
 
 export function useSubmitGoalScoring() {
   const queryClient = useQueryClient();
+  const { data: org } = useUserOrganization();
   return useMutation({
     mutationFn: async ({ planId, items }: { planId: string; items: GoalItem[] }) => {
+      const orgId = org?.organizationId;
+      if (!orgId) throw new Error("Organization not found");
       const { data, error } = await supabase
         .from("goal_plans")
         .update({ status: "pending_score_approval", items: items as unknown as any })
         .eq("id", planId)
+        .eq("organization_id", orgId)
         .select()
         .single();
       if (error) throw error;
