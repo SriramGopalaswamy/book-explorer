@@ -599,8 +599,8 @@ export default function Profile() {
                       <DetailRow label="Employee ID" value={details?.employee_id_number} section="bank" fieldKey="employee_id_number" />
                       <DetailRow label="PAN Number" value={details?.pan_number ? details.pan_number.slice(0, 2) + "••••" + details.pan_number.slice(-2) : null} section="bank" fieldKey="pan_number" />
                       <DetailRow label="Aadhaar (last 4)" value={details?.aadhaar_last_four ? "••••" + details.aadhaar_last_four : null} section="bank" fieldKey="aadhaar_last_four" />
-                      <DetailRow label="UAN Number" value={details?.uan_number} section="bank" fieldKey="uan_number" />
-                      <DetailRow label="ESI Number" value={details?.esi_number} section="bank" fieldKey="esi_number" />
+                      <DetailRow label="UAN Number" value={details?.uan_number ? "••••••••" + details.uan_number.slice(-4) : null} section="bank" fieldKey="uan_number" />
+                      <DetailRow label="ESI Number" value={details?.esi_number ? "••••••••" + details.esi_number.slice(-4) : null} section="bank" fieldKey="esi_number" />
                     </>
                   )}
                 </CardContent>
