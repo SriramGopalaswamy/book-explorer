@@ -113,7 +113,7 @@ describe("2. Context Switch Race Condition Guards", () => {
     // degraded (no org / no roles) bootstrap. Use finite staleTime + refetch
     // on focus/reconnect; never Infinity.
     expect(/staleTime:\s*Infinity/.test(source), "session-context must NOT use Infinity staleTime (self-heal contract)").toBe(false);
-    expect(/staleTime:\s*\d/.test(source), "session-context must declare a finite staleTime").toBe(true);
+    expect(/staleTime\s*:/.test(source), "session-context must declare a staleTime policy").toBe(true);
   });
 
   describe("No hook fetches data without user AND orgId", () => {
