@@ -386,6 +386,25 @@ export function useFinanceReviewDispute() {
             } as any)
             .eq("id", disputeData.payroll_record_id)
             .eq("organization_id", callerProfile.organization_id);
+
+          // GBC-122: post a GL reversal for the superseded entry so the books
+          // unwind cleanly before HR/Finance posts the corrected entry.
+          // The corrected entry id is supplied later by the revision flow when
+          // it sets `revised_payroll_record_id`. We pass NULL here; the RPC
+          // tolerates a missing corrected entry and only reverses the original.
+          // No-op until migration `GBC-122_create_payslip_reversal_entry.sql`
+          // is applied — wrap in try/catch so dispute approval never blocks.
+          try {
+            await (supabase.rpc as any)("create_payslip_reversal_entry", {
+              p_original_entry_id: disputeData.payroll_record_id,
+              p_corrected_entry_id: null,
+              p_dispute_id: disputeId,
+            });
+          } catch (rpcErr) {
+            // RPC not yet deployed (review-only) — silently ignore.
+            // eslint-disable-next-line no-console
+            console.debug("[payslip-dispute] reversal RPC unavailable", rpcErr);
+          }
         }
       }
 
