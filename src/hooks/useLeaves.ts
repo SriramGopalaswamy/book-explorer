@@ -326,8 +326,18 @@ export function useCreateLeaveRequest() {
         body: { type: "leave_request_created", payload: { leave_request_id: data.id } },
       }).catch((err) => console.warn("Failed to send leave notification:", err));
     },
-    onError: (error) => {
-      toast.error("Failed to submit leave request: " + error.message);
+    onError: (error: any) => {
+      const msg = String(error?.message ?? "");
+      // Translate DB trigger / RLS errors into actionable messages
+      if (msg.includes("LEAVE_OVERLAP")) {
+        toast.error("A leave request already exists for one or more of these dates.");
+        return;
+      }
+      if (msg.includes("leave_gender_eligible_insert") || msg.includes("row-level security") || msg.includes("violates row-level security")) {
+        toast.error("This leave type is not available for your profile (gender-restricted).");
+        return;
+      }
+      toast.error("Failed to submit leave request: " + msg);
     },
   });
 }

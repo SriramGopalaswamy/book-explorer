@@ -21,7 +21,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Calendar as CalendarIcon, Plus, Pencil, Trash2, PartyPopper, Search, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Pencil, Trash2, PartyPopper, Search, Loader2, AlertTriangle, Copy } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
@@ -117,6 +118,59 @@ export default function Holidays() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  // GBC-74: surface stale payroll runs (working_days_stale=true)
+  const { data: staleRuns = [] } = useQuery({
+    queryKey: ["payroll-runs-stale", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from("payroll_runs")
+        .select("id, pay_period, status, working_days_stale")
+        .eq("organization_id", orgId)
+        .eq("working_days_stale", true)
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!orgId,
+  });
+
+  // GBC-74: clone holidays from previous year
+  const cloneFromPrevYear = useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("No organization found");
+      const prevYear = selectedYear - 1;
+      const { data: prev, error: prevErr } = await supabase
+        .from("holidays")
+        .select("name, date")
+        .eq("organization_id", orgId)
+        .eq("year", prevYear)
+        .order("date");
+      if (prevErr) throw prevErr;
+      if (!prev || prev.length === 0) {
+        throw new Error(`No holidays found in ${prevYear} to clone.`);
+      }
+      const cloned = prev.map((h) => {
+        const d = new Date(h.date);
+        d.setFullYear(selectedYear);
+        return {
+          name: h.name,
+          date: d.toISOString().split("T")[0],
+          year: selectedYear,
+          organization_id: orgId,
+        };
+      });
+      const { error } = await supabase.from("holidays").insert(cloned);
+      if (error) throw error;
+      return cloned.length;
+    },
+    onSuccess: (count) => {
+      qc.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success(`Cloned ${count} holidays from ${selectedYear - 1}`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const filtered = useMemo(() =>
     holidays.filter((h) => {
       const q = searchQuery.toLowerCase();
@@ -155,6 +209,16 @@ export default function Holidays() {
   return (
     <MainLayout title="Holidays" subtitle="Company holiday calendar">
       <div className="space-y-6">
+        {staleRuns.length > 0 && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Payroll working days are out of date</AlertTitle>
+            <AlertDescription>
+              {staleRuns.length} open payroll run{staleRuns.length === 1 ? "" : "s"} ({staleRuns.map((r: any) => r.pay_period).join(", ")})
+              {" "}need recalculation because holidays in those months changed. Open the payroll run to recalculate.
+            </AlertDescription>
+          </Alert>
+        )}
         {/* Stats */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -229,6 +293,17 @@ export default function Holidays() {
               </div>
               {isAdmin && (
                 <>
+                <Button
+                  variant="outline"
+                  onClick={() => cloneFromPrevYear.mutate()}
+                  disabled={cloneFromPrevYear.isPending}
+                  title={`Clone holidays from ${selectedYear - 1}`}
+                >
+                  {cloneFromPrevYear.isPending
+                    ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    : <Copy className="h-4 w-4 mr-1" />}
+                  Clone {selectedYear - 1}
+                </Button>
                 <BulkUploadDialog config={holidaysBulkConfig} />
                 <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
                   <DialogTrigger asChild>

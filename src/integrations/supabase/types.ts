@@ -771,6 +771,13 @@ export type Database = {
             foreignKeyName: "assets_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "assets_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -893,6 +900,13 @@ export type Database = {
             foreignKeyName: "attendance_correction_requests_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "attendance_correction_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -922,6 +936,132 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_corrections: {
+        Row: {
+          corrected_check_in: string | null
+          corrected_check_out: string | null
+          created_at: string
+          id: string
+          organization_id: string
+          profile_id: string
+          reason: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          reviewer_notes: string | null
+          status: string
+          updated_at: string
+          work_date: string
+        }
+        Insert: {
+          corrected_check_in?: string | null
+          corrected_check_out?: string | null
+          created_at?: string
+          id?: string
+          organization_id: string
+          profile_id: string
+          reason: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          updated_at?: string
+          work_date: string
+        }
+        Update: {
+          corrected_check_in?: string | null
+          corrected_check_out?: string | null
+          created_at?: string
+          id?: string
+          organization_id?: string
+          profile_id?: string
+          reason?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          reviewer_notes?: string | null
+          status?: string
+          updated_at?: string
+          work_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_corrections_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_corrections_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -988,6 +1128,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "attendance_daily_profile_id_fkey"
@@ -1110,6 +1257,13 @@ export type Database = {
             foreignKeyName: "attendance_punches_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "attendance_punches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -1183,6 +1337,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "attendance_records_profile_id_fkey"
@@ -2275,6 +2436,62 @@ export type Database = {
           },
         ]
       }
+      bill_payment_lines: {
+        Row: {
+          amount_applied: number
+          bill_id: string
+          created_at: string
+          id: string
+          organization_id: string
+          vendor_payment_id: string
+        }
+        Insert: {
+          amount_applied: number
+          bill_id: string
+          created_at?: string
+          id?: string
+          organization_id: string
+          vendor_payment_id: string
+        }
+        Update: {
+          amount_applied?: number
+          bill_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string
+          vendor_payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_payment_lines_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payment_lines_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "v_bills_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payment_lines_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_payment_lines_vendor_payment_id_fkey"
+            columns: ["vendor_payment_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bills: {
         Row: {
           ai_extracted: boolean
@@ -2830,6 +3047,13 @@ export type Database = {
             foreignKeyName: "compensation_revision_requests_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "compensation_revision_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -2909,6 +3133,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compensation_structures_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "compensation_structures_profile_id_fkey"
@@ -4140,6 +4371,13 @@ export type Database = {
             foreignKeyName: "employee_code_mappings_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "employee_code_mappings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -4269,6 +4507,13 @@ export type Database = {
             foreignKeyName: "employee_details_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: true
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "employee_details_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -4345,6 +4590,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_documents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "employee_documents_profile_id_fkey"
@@ -4432,6 +4684,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_tax_settings_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "employee_tax_settings_profile_id_fkey"
@@ -4798,6 +5057,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "expenses_profile_id_fkey"
@@ -5221,6 +5487,13 @@ export type Database = {
             foreignKeyName: "form16_records_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "form16_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -5420,6 +5693,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goal_plans_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "goal_plans_profile_id_fkey"
@@ -6183,6 +6463,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investment_declarations_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "investment_declarations_profile_id_fkey"
@@ -6964,6 +7251,13 @@ export type Database = {
             foreignKeyName: "leave_balance_adjustments_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "leave_balance_adjustments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -7041,6 +7335,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_balances_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "leave_balances_profile_id_fkey"
@@ -7138,6 +7439,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leave_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "leave_requests_profile_id_fkey"
@@ -8179,6 +8487,13 @@ export type Database = {
             foreignKeyName: "payroll_entries_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payroll_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -8253,6 +8568,13 @@ export type Database = {
             foreignKeyName: "payroll_events_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payroll_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -8296,6 +8618,86 @@ export type Database = {
             columns: ["payroll_run_id"]
             isOneToOne: false
             referencedRelation: "payroll_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_lop_flags: {
+        Row: {
+          created_at: string
+          id: string
+          leave_request_id: string | null
+          lop_days: number
+          month_year: string
+          organization_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          leave_request_id?: string | null
+          lop_days?: number
+          month_year: string
+          organization_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          leave_request_id?: string | null
+          lop_days?: number
+          month_year?: string
+          organization_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_lop_flags_leave_request_id_fkey"
+            columns: ["leave_request_id"]
+            isOneToOne: false
+            referencedRelation: "leave_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_lop_flags_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_lop_flags_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payroll_lop_flags_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_lop_flags_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_lop_flags_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_lop_flags_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
           },
         ]
@@ -8430,6 +8832,13 @@ export type Database = {
             foreignKeyName: "payroll_records_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -8520,6 +8929,7 @@ export type Database = {
           total_gross: number
           total_net: number
           updated_at: string
+          working_days_stale: boolean
         }
         Insert: {
           approved_at?: string | null
@@ -8540,6 +8950,7 @@ export type Database = {
           total_gross?: number
           total_net?: number
           updated_at?: string
+          working_days_stale?: boolean
         }
         Update: {
           approved_at?: string | null
@@ -8560,6 +8971,7 @@ export type Database = {
           total_gross?: number
           total_net?: number
           updated_at?: string
+          working_days_stale?: boolean
         }
         Relationships: [
           {
@@ -8665,6 +9077,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_payroll_records_active"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payslip_disputes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "payslip_disputes_profile_id_fkey"
@@ -9011,6 +9430,13 @@ export type Database = {
             foreignKeyName: "profile_change_requests_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "profile_change_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -9155,6 +9581,13 @@ export type Database = {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -9178,6 +9611,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "profiles_manager_signoff_by_fkey"
@@ -9877,6 +10317,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reimbursement_requests_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "reimbursement_requests_profile_id_fkey"
@@ -12446,6 +12893,97 @@ export type Database = {
       }
     }
     Views: {
+      attendance_daily_summary: {
+        Row: {
+          first_check_in: string | null
+          hours_worked: number | null
+          last_check_out: string | null
+          organization_id: string | null
+          profile_id: string | null
+          record_status: string | null
+          tenant_timezone: string | null
+          work_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "employee_full_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "v_profiles_active"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_attendance_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_pending_review: {
+        Row: {
+          first_check_in: string | null
+          full_name: string | null
+          hours_worked: number | null
+          last_check_out: string | null
+          organization_id: string | null
+          profile_id: string | null
+          record_status: string | null
+          work_date: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_profiles_org"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_full_profiles: {
         Row: {
           aadhaar_last_four: string | null
@@ -12495,6 +13033,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "profiles_manager_id_fkey"
@@ -12667,6 +13212,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_daily_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "attendance_daily_profile_id_fkey"
@@ -13111,6 +13663,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expenses_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "expenses_profile_id_fkey"
@@ -13725,6 +14284,13 @@ export type Database = {
             foreignKeyName: "payroll_records_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "payroll_records_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -13883,6 +14449,13 @@ export type Database = {
             foreignKeyName: "profiles_manager_id_fkey"
             columns: ["manager_id"]
             isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_id_fkey"
+            columns: ["manager_id"]
+            isOneToOne: false
             referencedRelation: "employee_full_profiles"
             referencedColumns: ["id"]
           },
@@ -13906,6 +14479,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_profiles_active"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_manager_signoff_by_fkey"
+            columns: ["manager_signoff_by"]
+            isOneToOne: false
+            referencedRelation: "attendance_pending_review"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "profiles_manager_signoff_by_fkey"
@@ -14446,6 +15026,14 @@ export type Database = {
         Args: { _sandbox_user_id: string; _token: string }
         Returns: Json
       }
+      leave_type_gender_eligible: {
+        Args: {
+          p_leave_type_key: string
+          p_org_id: string
+          p_profile_id: string
+        }
+        Returns: boolean
+      }
       mark_expense_paid: {
         Args: {
           p_bank_account_id?: string
@@ -14652,6 +15240,15 @@ export type Database = {
         }[]
       }
       storage_path_org_id: { Args: { object_name: string }; Returns: string }
+      submit_attendance_correction: {
+        Args: {
+          p_corrected_in: string
+          p_corrected_out: string
+          p_reason: string
+          p_work_date: string
+        }
+        Returns: string
+      }
       trial_balance: {
         Args: { p_as_of?: string }
         Returns: {
