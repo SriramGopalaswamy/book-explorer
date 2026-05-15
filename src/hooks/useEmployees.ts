@@ -326,8 +326,13 @@ export function useUpdateEmployee() {
       queryClient.invalidateQueries({ queryKey: ["attendance"] });
       queryClient.invalidateQueries({ queryKey: ["attendance-stats"] });
     },
-    onError: (error) => {
-      toast.error(error.message);
+    onError: (error: any) => {
+      const msg = String(error?.message ?? "");
+      if (msg.includes("CIRCULAR_MANAGER")) {
+        toast.error("Cannot set this manager — it would create a circular reporting chain.");
+        return;
+      }
+      toast.error(msg);
     },
   });
 }
