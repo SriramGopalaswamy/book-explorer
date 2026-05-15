@@ -97,6 +97,7 @@ export function useFinancialRecords() {
         .select("*")
 
         .eq("organization_id", orgId)
+        .eq("is_deleted", false)
         .order("record_date", { ascending: false }).limit(500);
 
       if (error) throw error;

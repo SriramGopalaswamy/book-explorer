@@ -25,11 +25,14 @@ describe('System Flags', () => {
   
   it('should set flags correctly in development mode', () => {
     const flags = getSystemFlags();
-    
-    // In test mode (which is development), these should be true by default
+
+    // Flags follow VITE_DEV_MODE / VITE_ALLOW_PERMISSION_EDITING env overrides
+    // (see .env). When unset they default to true in non-prod.
     if (!flags.isProduction) {
-      expect(flags.DEV_MODE).toBe(true);
-      expect(flags.ALLOW_PERMISSION_EDITING).toBe(true);
+      const expectedDev = import.meta.env.VITE_DEV_MODE !== 'false';
+      const expectedPerm = import.meta.env.VITE_ALLOW_PERMISSION_EDITING !== 'false';
+      expect(flags.DEV_MODE).toBe(expectedDev);
+      expect(flags.ALLOW_PERMISSION_EDITING).toBe(expectedPerm);
     }
   });
 });

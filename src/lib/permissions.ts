@@ -131,7 +131,7 @@ export const DEFAULT_PERMISSIONS: Record<ConfigurableRole, Record<ResourceKey, P
 
   finance: {
     dashboard:            V,
-    financial:            ALL,
+    financial:            VCEX, // no delete on financial — admin-only via Maker-Checker
     inventory:            ALL,
     manufacturing:        ALL,
     procurement:          ALL,

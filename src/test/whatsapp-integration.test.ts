@@ -728,7 +728,7 @@ describe("SQL wildcard escaping in invoice matching", () => {
     const ref = "INV%2026";
     const escaped = ref.replace(/%/g, "\\%").replace(/_/g, "\\_");
     expect(escaped).toBe("INV\\%2026");
-    expect(escaped).not.toContain("%2026");
+    expect(escaped).not.toMatch(/(^|[^\\])%/);
   });
 
   it("should escape _ characters in invoice reference", () => {
