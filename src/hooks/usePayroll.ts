@@ -224,19 +224,22 @@ export function usePayrollOrgRecordCount() {
 
 export function useMyPayrollRecords() {
   const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
 
   return useQuery({
-    queryKey: ["my-payroll", user?.id],
+    queryKey: ["my-payroll", user?.id, orgId],
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !orgId) return [];
 
       const { data: profile } = await supabase
         .from("profiles")
         .select("id")
         .eq("user_id", user.id)
+        .eq("organization_id", orgId)
         .maybeSingle();
       if (!profile) return [];
 
@@ -245,6 +248,7 @@ export function useMyPayrollRecords() {
         .from("payroll_entries")
         .select("id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, tds_amount, created_at, updated_at, payroll_runs!inner(id, pay_period, status, notes), profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)")
         .eq("profile_id", profile.id)
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -252,7 +256,7 @@ export function useMyPayrollRecords() {
       const engineRecords = (engineRows ?? []).map(engineEntryToPayrollRecord);
       return engineRecords as PayrollRecord[];
     },
-    enabled: !!user,
+    enabled: !!user && !!orgId,
   });
 }
 
