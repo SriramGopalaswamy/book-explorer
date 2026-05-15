@@ -35,19 +35,22 @@ const DOC_TYPES = [
 export { DOC_TYPES };
 
 export function useEmployeeDocuments(profileId: string | null) {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
   return useQuery({
-    queryKey: ["employee-documents", profileId],
+    queryKey: ["employee-documents", profileId, orgId],
     queryFn: async () => {
-      if (!profileId) return [];
+      if (!profileId || !orgId) return [];
       const { data, error } = await supabase
         .from("employee_documents")
         .select("*")
         .eq("profile_id", profileId)
+        .eq("organization_id", orgId)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as EmployeeDocument[];
     },
-    enabled: !!profileId,
+    enabled: !!profileId && !!orgId,
   });
 }
 
