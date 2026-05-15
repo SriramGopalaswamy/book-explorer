@@ -122,7 +122,9 @@ describe("exportPayrollCSV", () => {
 
     expect(headerLine).toBe(
       "Employee Name,Department,Job Title,Annual CTC," +
-        "Gross Earnings,Total Deductions,LWP Days,LWP Deduction," +
+        "Gross Earnings,PF (Employee),PF (Employer),TDS," +
+        "Professional Tax,Incentive,Bonus," +
+        "Total Deductions,LWP Days,LWP Deduction," +
         "Working Days,Paid Days,Net Pay",
     );
   });
@@ -200,7 +202,7 @@ describe("exportPayrollCSV", () => {
 
     // Numeric columns should still be present
     expect(dataRow[3]).toBe("600000"); // annual_ctc
-    expect(dataRow[10]).toBe("45000"); // net_pay
+    expect(dataRow[16]).toBe("45000"); // net_pay (last column)
   });
 
   // ── 6. Correct download filename ───────────────────────────────────────
