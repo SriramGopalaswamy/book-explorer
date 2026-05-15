@@ -373,6 +373,9 @@ export default function Bills() {
   const { data: isFinance, isLoading: roleLoading } = useIsFinance();
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
+  // GBC-107: open fiscal periods for date-picker enforcement
+  const { data: openPeriods } = useOpenFiscalPeriods();
+  const periodBounds = openPeriodBounds(openPeriods);
 
   // List state
   const [search, setSearch] = useState("");
