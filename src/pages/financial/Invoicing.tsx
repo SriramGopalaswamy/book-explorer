@@ -788,7 +788,8 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-3 gap-4">
                       <div className="grid gap-2">
                         <Label>Invoice Date *</Label>
-                        <Input type="date" value={editFormMeta.invoiceDate} onChange={e => setEditFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                        <Input type="date" min={periodBounds.min} max={periodBounds.max} value={editFormMeta.invoiceDate} onChange={e => setEditFormMeta(prev => ({ ...prev, invoiceDate: e.target.value }))} />
+                        <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
                       </div>
                       <div className="grid gap-2">
                         <Label>Due Date *</Label>
