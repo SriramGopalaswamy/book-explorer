@@ -313,6 +313,11 @@ export default function Attendance() {
         </CardContent>
       </Card>
 
+      {/* Pending Review (GBC-9 / GBC-77) */}
+      <div className="mb-6">
+        <PendingReviewPanel />
+      </div>
+
       {/* Attendance Engine */}
       <div className="mb-6">
         <AttendanceEnginePanel />
