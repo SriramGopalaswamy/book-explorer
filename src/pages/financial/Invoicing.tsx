@@ -80,6 +80,7 @@ import { getInvoicePdfSignedUrl } from "@/hooks/useAadhaarSign";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { useNavigate } from "react-router-dom";
+import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 import { WorkflowStatus } from "@/components/financial/WorkflowStatus";
