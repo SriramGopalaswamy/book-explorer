@@ -170,6 +170,9 @@ export default function Holidays() {
     },
     onError: (e: any) => toast.error(e.message),
   });
+
+  const filtered = useMemo(() =>
+    holidays.filter((h) => {
       const q = searchQuery.toLowerCase();
       return !q || h.name.toLowerCase().includes(q);
     }),
