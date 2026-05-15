@@ -635,6 +635,55 @@ export default function Bills() {
     },
   });
 
+  // GBC-86: Bulk pay selected bills via record_vendor_payment RPC + bill_payment_lines tracking.
+  const runBulkPay = async () => {
+    if (!orgId) return;
+    if (!bulkPay.bank_account_id) { toast.error("Please select a bank account."); return; }
+    const targets = bills.filter((b: any) => selectedIds.has(b.id) && (b.status === "received" || b.status === "overdue" || isOverdue(b)));
+    if (targets.length === 0) { toast.error("No payable bills selected."); return; }
+
+    setBulkPaying(true);
+    let ok = 0; const errs: string[] = [];
+    for (const b of targets) {
+      try {
+        const amt = Number(b.total_amount);
+        const { data: pmtId, error } = await (supabase as any).rpc("record_vendor_payment", {
+          p_bill_id: b.id,
+          p_amount: amt,
+          p_payment_method: bulkPay.payment_method,
+          p_bank_account_id: bulkPay.bank_account_id,
+          p_reference: bulkPay.reference_number || null,
+          p_payment_date: bulkPay.payment_date,
+        });
+        if (error) throw error;
+        // Track allocation in bill_payment_lines (best-effort; trigger validates totals).
+        if (pmtId) {
+          await supabase.from("bill_payment_lines").insert({
+            organization_id: orgId,
+            vendor_payment_id: pmtId,
+            bill_id: b.id,
+            amount_applied: amt,
+          } as any);
+        }
+        ok++;
+      } catch (e: any) {
+        errs.push(`${b.bill_number}: ${e.message || "failed"}`);
+      }
+    }
+    setBulkPaying(false);
+    queryClient.invalidateQueries({ queryKey: ["bills"] });
+    queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+    if (ok > 0) toast.success(`Paid ${ok} bill${ok === 1 ? "" : "s"}${errs.length ? ` (${errs.length} failed)` : ""}`);
+    if (errs.length) toast.error(errs.slice(0, 3).join(" • "));
+    if (errs.length === 0) {
+      setBulkPayOpen(false);
+      setSelectedIds(new Set());
+    }
+  };
+
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
   const resetForm = () => {
