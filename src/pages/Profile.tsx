@@ -208,7 +208,7 @@ export default function Profile() {
 
   const handlePasswordUpdate = async () => {
     setPasswordError("");
-    if (!newPassword || !confirmPassword) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
       setPasswordError("Please fill in all password fields");
       return;
     }
@@ -220,13 +220,27 @@ export default function Profile() {
       setPasswordError("Passwords do not match");
       return;
     }
+    if (!user?.email) {
+      setPasswordError("Missing account email");
+      return;
+    }
     setIsUpdating(true);
     try {
+      // GBC-105: re-authenticate with current password before allowing change
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
+      if (reauthError) {
+        setPasswordError("Current password is incorrect");
+        return;
+      }
       const { error } = await updatePassword(newPassword);
       if (error) {
         setPasswordError(error.message);
       } else {
         toast.success("Password updated successfully");
+        setCurrentPassword("");
         setNewPassword("");
         setConfirmPassword("");
       }
