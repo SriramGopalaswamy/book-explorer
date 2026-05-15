@@ -51,7 +51,8 @@ export function PrivacySecuritySection() {
 
 // ── Sign-in Methods (admin) ─────────────────────────────────────────
 function AuthMethodsSection() {
-  const ORG_ID = "00000000-0000-0000-0000-000000000001";
+  const { data: org } = useUserOrganization();
+  const ORG_ID = org?.organizationId;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [emailSignin, setEmailSignin] = useState(false);
@@ -59,6 +60,7 @@ function AuthMethodsSection() {
   const [googleSignin, setGoogleSignin] = useState(false);
 
   useEffect(() => {
+    if (!ORG_ID) return;
     (async () => {
       try {
         const { data } = await (await import("@/integrations/supabase/client")).supabase
@@ -73,9 +75,13 @@ function AuthMethodsSection() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [ORG_ID]);
 
   const save = async (patch: { allow_email_signin?: boolean; allow_email_signup?: boolean; allow_google_signin?: boolean }) => {
+    if (!ORG_ID) {
+      toast.error("Organization context not loaded");
+      return false;
+    }
     setSaving(true);
     const { supabase } = await import("@/integrations/supabase/client");
     const { error } = await supabase
