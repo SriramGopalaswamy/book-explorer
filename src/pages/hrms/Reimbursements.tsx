@@ -46,6 +46,7 @@ import { DataLoadingBar } from "@/components/ui/DataLoadingBar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
 
 const EXPENSE_CATEGORIES = [
   "Travel & Transport",
