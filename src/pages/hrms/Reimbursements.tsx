@@ -617,9 +617,12 @@ export default function Reimbursements() {
                   <Label>Expense Date</Label>
                   <Input
                     type="date"
+                    min={periodBounds.min}
+                    max={periodBounds.max}
                     value={form.expense_date}
                     onChange={(e) => setForm((f) => ({ ...f, expense_date: e.target.value }))}
                   />
+                  <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Category <span className="text-red-400">*</span></Label>
