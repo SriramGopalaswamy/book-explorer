@@ -107,9 +107,13 @@ describe("2. Context Switch Race Condition Guards", () => {
     expect(/useSessionContext/.test(source), "useUserOrganization must read from useSessionContext").toBe(true);
   });
 
-  it("useSessionContext caches with Infinity staleTime (session-lifetime)", () => {
+  it("useSessionContext uses finite staleTime to allow self-heal on auth events", () => {
     const source = readHookFile("useSessionContext");
-    expect(/staleTime:\s*Infinity/.test(source), "session-context must use Infinity staleTime").toBe(true);
+    // Memory rule: session-context cache MUST self-heal — never persist a
+    // degraded (no org / no roles) bootstrap. Use finite staleTime + refetch
+    // on focus/reconnect; never Infinity.
+    expect(/staleTime:\s*Infinity/.test(source), "session-context must NOT use Infinity staleTime (self-heal contract)").toBe(false);
+    expect(/staleTime:\s*\d/.test(source), "session-context must declare a finite staleTime").toBe(true);
   });
 
   describe("No hook fetches data without user AND orgId", () => {
