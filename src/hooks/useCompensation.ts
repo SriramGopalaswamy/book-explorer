@@ -52,19 +52,22 @@ const DEFAULT_COMPONENTS: Omit<CompensationComponent, "id" | "compensation_struc
 ];
 
 export function useCompensationHistory(profileId: string | null) {
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
   return useQuery({
-    queryKey: ["compensation-history", profileId],
+    queryKey: ["compensation-history", profileId, orgId],
     queryFn: async () => {
-      if (!profileId) return [];
+      if (!profileId || !orgId) return [];
       const { data, error } = await supabase
         .from("compensation_structures")
         .select("*, compensation_components(*)")
         .eq("profile_id", profileId)
+        .eq("organization_id", orgId)
         .order("effective_from", { ascending: false });
       if (error) throw error;
       return (data ?? []) as CompensationStructure[];
     },
-    enabled: !!profileId,
+    enabled: !!profileId && !!orgId,
   });
 }
 
