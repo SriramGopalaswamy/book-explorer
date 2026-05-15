@@ -21,7 +21,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Calendar as CalendarIcon, Plus, Pencil, Trash2, PartyPopper, Search, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Pencil, Trash2, PartyPopper, Search, Loader2, AlertTriangle, Copy } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsAdminOrHR } from "@/hooks/useEmployees";
