@@ -194,70 +194,18 @@ export function useGeneratePayroll() {
       }
 
       if (!eligibleStructures || eligibleStructures.length === 0) {
-        // Fallback: generate entries from payroll_records for this period
-        const { data: existingRecords } = await supabase
-          .from("payroll_records")
-          .select("*, profiles!profile_id(full_name, email, department, job_title, status)")
-          .eq("organization_id", orgId)
-          .eq("pay_period", payPeriod)
-          .eq("is_superseded", false);
-
-        // Filter out inactive employees; collect names for caller warning
-        const allFallbackRecords = existingRecords || [];
-        const activeRecords = allFallbackRecords.filter((r: any) => r.profiles?.status === 'active');
-        const skippedNames = allFallbackRecords
-          .filter((r: any) => r.profiles?.status !== 'active')
-          .map((r: any) => r.profiles?.full_name || r.profile_id);
-
-        const warnings: string[] = [];
-        if (skippedNames.length > 0) {
-          warnings.push(`Skipped ${skippedNames.length} inactive employee(s): ${skippedNames.join(", ")}`);
-        }
-
-        if (activeRecords.length === 0) {
-          await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
-          warnings.push(
-            `No payroll records found for ${payPeriod}. ` +
-            `Ensure employees have compensation structures or manual payroll records for this period.`
-          );
-          return { run, entriesCount: 0, warnings };
-        }
-
-        // Map payroll_records to payroll_entries
-        const fallbackEntries = activeRecords.map((r: any) => {
-          const gross = Number(r.basic_salary || 0) + Number(r.hra || 0) + Number(r.transport_allowance || 0) + Number(r.other_allowances || 0);
-          const deductions = Number(r.pf_deduction || 0) + Number(r.tax_deduction || 0) + Number(r.other_deductions || 0);
-          const netPay = gross - deductions;
-          return {
-            payroll_run_id: run.id,
-            profile_id: r.profile_id,
-            organization_id: orgId,
-            compensation_structure_id: null,
-            annual_ctc: gross * 12,
-            gross_earnings: gross,
-            total_deductions: deductions,
-            net_pay: netPay,
-            lwp_days: Number(r.lop_days || 0),
-            lwp_deduction: Number(r.lop_deduction || 0),
-            working_days: Number(r.working_days || 22),
-            paid_days: Number(r.paid_days || 22),
-            earnings_breakdown: [
-              { name: "Basic Salary", annual: Number(r.basic_salary || 0) * 12, monthly: Number(r.basic_salary || 0), is_taxable: true },
-              { name: "HRA", annual: Number(r.hra || 0) * 12, monthly: Number(r.hra || 0), is_taxable: true },
-              { name: "Transport Allowance", annual: Number(r.transport_allowance || 0) * 12, monthly: Number(r.transport_allowance || 0), is_taxable: true },
-              { name: "Other Allowances", annual: Number(r.other_allowances || 0) * 12, monthly: Number(r.other_allowances || 0), is_taxable: true },
-            ].filter(e => e.monthly > 0),
-            deductions_breakdown: [
-              { name: "PF Deduction", annual: Number(r.pf_deduction || 0) * 12, monthly: Number(r.pf_deduction || 0), is_taxable: false },
-              { name: "Tax Deduction", annual: Number(r.tax_deduction || 0) * 12, monthly: Number(r.tax_deduction || 0), is_taxable: false },
-              { name: "Other Deductions", annual: Number(r.other_deductions || 0) * 12, monthly: Number(r.other_deductions || 0), is_taxable: false },
-            ].filter(d => d.monthly > 0),
-            status: "computed",
-          };
-        });
-
-        const { error: fbErr } = await supabase.from("payroll_entries").insert(fallbackEntries);
-        if (fbErr) {
+        // Phase 4 (2026-05-15): legacy payroll_records fallback retired.
+        // The engine now requires compensation_structures as the source of truth.
+        await supabase.from("payroll_runs").update({ status: "completed", employee_count: 0 }).eq("id", run.id);
+        return {
+          run,
+          entriesCount: 0,
+          warnings: [
+            `No active compensation structures found for ${payPeriod}. ` +
+              `Define compensation for active employees, or use Bulk Upload to seed entries directly.`,
+          ],
+        };
+      }
           // Rollback: delete orphan run
           await supabase.from("payroll_runs").delete().eq("id", run.id);
           throw fbErr;
