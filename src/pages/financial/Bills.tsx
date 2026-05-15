@@ -1233,9 +1233,12 @@ export default function Bills() {
                 <Label>Bill Date</Label>
                 <Input
                   type="date"
+                  min={periodBounds.min}
+                  max={periodBounds.max}
                   value={form.bill_date}
                   onChange={(e) => setForm((p) => ({ ...p, bill_date: e.target.value }))}
                 />
+                <p className="text-xs text-muted-foreground">Only dates within open fiscal periods are allowed</p>
               </div>
 
               <div className="space-y-1.5">
