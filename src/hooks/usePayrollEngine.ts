@@ -206,25 +206,6 @@ export function useGeneratePayroll() {
           ],
         };
       }
-          // Rollback: delete orphan run
-          await supabase.from("payroll_runs").delete().eq("id", run.id);
-          throw fbErr;
-        }
-
-        const fbGross = fallbackEntries.reduce((s: number, e: any) => s + e.gross_earnings, 0);
-        const fbDed = fallbackEntries.reduce((s: number, e: any) => s + e.total_deductions, 0);
-        const fbNet = fallbackEntries.reduce((s: number, e: any) => s + e.net_pay, 0);
-
-        await supabase.from("payroll_runs").update({
-          status: "completed",
-          employee_count: fallbackEntries.length,
-          total_gross: fbGross,
-          total_deductions: fbDed,
-          total_net: fbNet,
-        }).eq("id", run.id);
-
-        return { run, entriesCount: fallbackEntries.length, warnings };
-      }
 
       // 4. Fetch LWP for the period from leave_requests AND attendance_daily
       // Parse period: "2026-03", "2026-03-H1", "2026-03-W2"
