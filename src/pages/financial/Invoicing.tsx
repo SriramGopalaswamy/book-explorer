@@ -195,6 +195,9 @@ export default function Invoicing() {
   const { data: orgData } = useUserOrganization();
   const { compliance } = useOnboardingCompliance();
   const orgState = compliance?.state ?? null;
+  // GBC-107: open fiscal periods for date-picker enforcement
+  const { data: openPeriods } = useOpenFiscalPeriods();
+  const periodBounds = openPeriodBounds(openPeriods);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(1);
