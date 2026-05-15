@@ -416,6 +416,11 @@ export default function Invoicing() {
       toast({ title: "Validation Error", description: "Please fill in all required fields", variant: "destructive" });
       return;
     }
+    // GBC-107: block invoice edits that move date into a closed period
+    if (!isDateInOpenPeriod(editFormMeta.invoiceDate, openPeriods)) {
+      toast({ title: "Closed period", description: "Selected invoice date is in a closed fiscal period", variant: "destructive" });
+      return;
+    }
 
     const editInterstate = isInterstateSupply(editFormMeta.placeOfSupply, orgState);
     const { computed, subtotal, cgstTotal, sgstTotal, igstTotal, total } = calculateLineItemTotals(editLineItems, editInterstate);
