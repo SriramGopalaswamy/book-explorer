@@ -171,11 +171,19 @@ export function useApproveDeclaration() {
     mutationFn: async ({ id, approved_amount }: { id: string; approved_amount: number }) => {
       if (approved_amount < 0) throw new Error("Approved amount cannot be negative");
 
-      // Verify current status is submitted
+      const currentUser = (await supabase.auth.getUser()).data.user;
+      if (!currentUser) throw new Error("Not authenticated");
+
+      // Resolve caller org for tenant isolation
+      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", currentUser.id).maybeSingle();
+      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+
+      // Verify current status is submitted (org-scoped lookup)
       const { data: decl } = await supabase
         .from("investment_declarations")
-        .select("status, declared_amount")
+        .select("status, declared_amount, user_id")
         .eq("id", id)
+        .eq("organization_id", callerProfile.organization_id)
         .single();
       if (!decl) throw new Error("Declaration not found");
       if (decl.status !== "submitted") throw new Error(`Cannot approve: declaration is already '${decl.status}'`);
@@ -183,18 +191,10 @@ export function useApproveDeclaration() {
         throw new Error("Approved amount cannot exceed declared amount");
       }
 
-      const currentUser = (await supabase.auth.getUser()).data.user;
-      if (!currentUser) throw new Error("Not authenticated");
-
       // Self-approval guard
-      const { data: declFull } = await supabase.from("investment_declarations").select("user_id").eq("id", id).single();
-      if ((declFull as any)?.user_id === currentUser.id) {
+      if ((decl as any)?.user_id === currentUser.id) {
         throw new Error("You cannot approve your own investment declaration.");
       }
-
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", currentUser.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
       const { error } = await supabase
         .from("investment_declarations")
