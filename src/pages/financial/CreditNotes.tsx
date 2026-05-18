@@ -229,7 +229,7 @@ export default function CreditNotes() {
       // invoice (GL trigger has fired); an issued credit note may have
       // journal entries. Block both paths and direct the user to void instead.
       const [statusCheck, glCheck] = await Promise.all([
-        supabase.from("credit_notes").select("id,status").eq("id", id).eq("organization_id", orgId).in("status", ["applied"]).limit(1),
+        supabase.from("credit_notes").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "applied").limit(1),
         supabase.from("journal_lines").select("id").eq("reference_id", id).eq("organization_id", orgId).limit(1),
       ]);
       if ((statusCheck.data?.length ?? 0) > 0 || (glCheck.data?.length ?? 0) > 0) {
