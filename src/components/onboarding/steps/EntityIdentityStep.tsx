@@ -115,7 +115,7 @@ export function EntityIdentityStep({ data, onChange, locked }: Props) {
           <Select value={data.state || ""} onValueChange={(v) => onChange({ state: v })}>
             <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
             <SelectContent>
-              {INDIAN_STATES.map((s) => (
+              {STATE_NAMES.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
             </SelectContent>
