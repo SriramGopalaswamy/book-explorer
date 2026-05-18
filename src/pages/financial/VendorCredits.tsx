@@ -194,13 +194,9 @@ export default function VendorCredits() {
       // GBC-91-sibling: Vendor credits are child entities — no FK dependents
       // exist, but an "applied" credit has already been offset against a bill.
       // Surface a friendly error rather than silently corrupting bill balances.
-      const statusCheck = await supabase
-        .from("vendor_credits")
-        .select("id")
-        .eq("id", id)
-        .eq("organization_id", orgId)
-        .eq("status", "applied")
-        .limit(1);
+      const [statusCheck] = await Promise.all([
+        supabase.from("vendor_credits").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "applied").limit(1),
+      ]);
       if ((statusCheck.data?.length ?? 0) > 0) {
         throw new Error("Cannot delete an applied vendor credit. Void it instead.");
       }
