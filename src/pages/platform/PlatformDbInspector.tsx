@@ -66,7 +66,13 @@ export default function PlatformDbInspector() {
   const fetchData = async (action = "full") => {
     setLoading(true);
     try {
-      const resp = await supabase.functions.invoke("db-inspector?action=" + action);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Inspection timed out after 30 s — database may be too large")), 30_000)
+      );
+      const resp = await Promise.race([
+        supabase.functions.invoke("db-inspector?action=" + action),
+        timeoutPromise,
+      ]);
 
       if (resp.error) throw new Error(resp.error.message || "Failed to fetch");
       const result = resp.data;
@@ -121,7 +127,13 @@ export default function PlatformDbInspector() {
   const downloadReport = async () => {
     setLoading(true);
     try {
-      const resp = await supabase.functions.invoke("db-inspector?action=report");
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Report timed out after 30 s")), 30_000)
+      );
+      const resp = await Promise.race([
+        supabase.functions.invoke("db-inspector?action=report"),
+        timeoutPromise,
+      ]);
       if (resp.error) throw new Error(resp.error.message);
       const html = resp.data.report_html;
       if (html) {
@@ -152,7 +164,13 @@ export default function PlatformDbInspector() {
   const downloadSqlDump = async () => {
     setDumpLoading(true);
     try {
-      const resp = await supabase.functions.invoke("db-inspector?action=dump");
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("SQL dump timed out after 60 s")), 60_000)
+      );
+      const resp = await Promise.race([
+        supabase.functions.invoke("db-inspector?action=dump"),
+        timeoutPromise,
+      ]);
       if (resp.error) throw new Error(resp.error.message);
 
       // The response data is the raw SQL string

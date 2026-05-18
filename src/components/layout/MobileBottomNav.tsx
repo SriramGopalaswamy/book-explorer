@@ -17,9 +17,8 @@ function getActiveTab(pathname: string) {
   if (pathname.startsWith("/hrms")) return "/hrms/employees";
   if (pathname.startsWith("/financial/analytics")) return "/financial/analytics";
   if (pathname.startsWith("/financial")) return "/financial/accounting";
-  if (pathname.startsWith("/performance")) return "/financial/accounting"; // fallback
   if (pathname.startsWith("/settings")) return "/settings";
-  return "/";
+  return ""; // unrecognised paths (e.g. /performance/*) — no tab active
 }
 
 export function MobileBottomNav() {

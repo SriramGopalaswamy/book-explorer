@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useSubscription } from "@/contexts/SubscriptionContext";
 import { useIsSuperAdmin } from "@/hooks/useSuperAdmin";
+import { useCurrentRole } from "@/hooks/useRoles";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { authTrace } from "@/lib/auth-trace";
@@ -50,7 +51,11 @@ function isModuleAllowed(pathname: string, enabledModules: string[] | null): boo
 export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
   const { needsActivation, onboardingRequired, loading, enabledModules } = useSubscription();
   const { data: isSuperAdmin, isLoading: saLoading } = useIsSuperAdmin();
+  const { data: currentRole } = useCurrentRole();
   const location = useLocation();
+  // Org admins manage all modules regardless of which the subscription lists — same
+  // intent as the sidebar's isAdmin bypass. Only super_admin and org admin bypass this.
+  const isOrgAdmin = currentRole === "admin";
 
   // Hard timeout to prevent permanent spinner
   const [timedOut, setTimedOut] = useState(false);
@@ -144,7 +149,8 @@ export function SubscriptionGuard({ children }: { children: React.ReactNode }) {
 
   // Module-level gating: if this org's plan doesn't include the module for this path,
   // redirect to activation so they can upgrade. Only enforced once subscription is loaded.
-  if (!loading && !isModuleAllowed(location.pathname, enabledModules)) {
+  // Org admins (like super_admins) bypass this — they manage all modules in their org.
+  if (!loading && !isSuperAdmin && !isOrgAdmin && !isModuleAllowed(location.pathname, enabledModules)) {
     const required = MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[1];
     decide("block:module_not_in_plan", {
       matchedPrefix: MODULE_PATH_MAP.find(([p]) => location.pathname.startsWith(p))?.[0],
