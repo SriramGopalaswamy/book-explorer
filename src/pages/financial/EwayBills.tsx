@@ -29,10 +29,10 @@ const STATUS_COLORS: Record<string, string> = {
   extended: "bg-accent/80 text-accent-foreground",
 };
 
-import { INDIAN_STATES as CANONICAL_INDIAN_STATES } from "@/lib/indian-states";
+import { INDIAN_STATES as CANONICAL_STATES } from "@/lib/indian-states";
 
 // E-way bill APIs key state by 2-digit GST code, not ISO code.
-const GST_STATES: { code: string; name: string }[] = CANONICAL_INDIAN_STATES
+const GST_STATES: { code: string; name: string }[] = CANONICAL_STATES
   .map((s) => ({ code: s.gstStateCode, name: s.name }))
   .sort((a, b) => a.name.localeCompare(b.name));
 
