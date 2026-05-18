@@ -101,7 +101,21 @@ export default function Expenses() {
   const expenses = allExpenses;
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => { if (!orgId) throw new Error("Organization not found"); const { error } = await supabase.from("expenses").delete().eq("id", id).eq("organization_id", orgId); if (error) throw error; },
+    mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("Organization not found");
+      // GBC-91-sibling: A reimbursed expense or one with posted journal
+      // entries cannot be removed without leaving orphaned GL / reimbursement
+      // rows behind. Surface a friendly error instead of an FK violation.
+      const [reimbCheck, glCheck] = await Promise.all([
+        supabase.from("reimbursement_requests").select("id").eq("expense_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("journal_entries").select("id").eq("source_id", id).eq("source_type", "expense").eq("organization_id", orgId).limit(1),
+      ]);
+      if ((reimbCheck.data?.length ?? 0) > 0 || (glCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete this expense — it has been reimbursed or has journal entries.");
+      }
+      const { error } = await supabase.from("expenses").delete().eq("id", id).eq("organization_id", orgId);
+      if (error) throw error;
+    },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["expenses-all"] }); queryClient.invalidateQueries({ queryKey: ["expenses-my"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Expense Deleted" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });

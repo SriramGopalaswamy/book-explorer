@@ -316,6 +316,16 @@ export default function Quotes() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
+      // GBC-91-sibling: Block deletion when the quote has been converted to
+      // an invoice or sales order. `quotes.status='converted'` is the
+      // canonical signal; `sales_orders.quote_id` is the FK link.
+      const [convertedCheck, soCheck] = await Promise.all([
+        supabase.from("quotes").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "converted").limit(1),
+        supabase.from("sales_orders").select("id").eq("quote_id", id).eq("organization_id", orgId).limit(1),
+      ]);
+      if ((convertedCheck.data?.length ?? 0) > 0 || (soCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete this quote — it has been converted to an invoice or sales order.");
+      }
       const { data: deleted, error } = await supabase.from("quotes").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0) throw new Error("Quote not found or could not be deleted.");

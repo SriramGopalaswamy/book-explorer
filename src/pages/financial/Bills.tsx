@@ -555,6 +555,15 @@ export default function Bills() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
+      // GBC-91-sibling: A paid bill has vendor_payments and journal entries
+      // posted. Block deletion and surface a friendly error.
+      const [payCheck, glCheck] = await Promise.all([
+        supabase.from("vendor_payments").select("id").eq("bill_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("journal_entries").select("id").eq("source_id", id).eq("source_type", "bill").eq("organization_id", orgId).limit(1),
+      ]);
+      if ((payCheck.data?.length ?? 0) > 0 || (glCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete this bill — it has been paid or has journal entries.");
+      }
       const { data: deleted, error } = await supabase
         .from("bills")
         .delete()

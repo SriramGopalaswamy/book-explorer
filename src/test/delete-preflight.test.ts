@@ -28,17 +28,12 @@ const SRC_DIR = path.resolve(__dirname, "..");
 const PAGES_DIR = path.join(SRC_DIR, "pages");
 
 /**
- * Known offenders today. Each has a tracking ticket; remove from the list
- * when the file adopts the Customers.tsx preflight pattern (in the same PR).
+ * Known offenders today. Each had a tracking ticket; when a file adopts
+ * the Customers.tsx preflight pattern its entry is removed from this list
+ * in the same PR. GBC-91 + siblings SHIPPED (2026-05-18) — allowlist now
+ * empty. Any new naked deleteMutation is a regression.
  */
-const EXPECTED_OFFENDERS: Record<string, string> = {
-  "pages/financial/Vendors.tsx": "GBC-91",
-  "pages/financial/VendorCredits.tsx": "GBC-91-sibling",
-  "pages/financial/Quotes.tsx": "GBC-91-sibling",
-  "pages/financial/CreditNotes.tsx": "GBC-91-sibling",
-  "pages/financial/Expenses.tsx": "GBC-91-sibling",
-  "pages/financial/Bills.tsx": "GBC-91-sibling",
-};
+const EXPECTED_OFFENDERS: Record<string, string> = {};
 
 const DELETE_MUTATION_HEADER = /const deleteMutation = useMutation\(\{/;
 const DELETE_MUTATION_BLOCK =

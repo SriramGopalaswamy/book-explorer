@@ -225,6 +225,16 @@ export default function CreditNotes() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
+      // GBC-91-sibling: An "applied" credit note has been offset against an
+      // invoice (GL trigger has fired); an issued credit note may have
+      // journal entries. Block both paths and direct the user to void instead.
+      const [statusCheck, glCheck] = await Promise.all([
+        supabase.from("credit_notes").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "applied").limit(1),
+        supabase.from("journal_entries").select("id").eq("source_id", id).eq("source_type", "credit_note").eq("organization_id", orgId).limit(1),
+      ]);
+      if ((statusCheck.data?.length ?? 0) > 0 || (glCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete this credit note — it has been applied to an invoice or has journal entries. Void it instead.");
+      }
       const { data: deleted, error } = await supabase.from("credit_notes").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0) throw new Error("Credit note not found or could not be deleted.");
