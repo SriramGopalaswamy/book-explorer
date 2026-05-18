@@ -400,7 +400,7 @@ export default function EwayBills() {
                       <Select value={form.from_state_code ?? ""} onValueChange={(v) => setField("from_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -428,7 +428,7 @@ export default function EwayBills() {
                       <Select value={form.to_state_code ?? ""} onValueChange={(v) => setField("to_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -657,7 +657,7 @@ export default function EwayBills() {
                       <Select value={editForm.from_state_code ?? ""} onValueChange={(v) => setEditField("from_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -675,7 +675,7 @@ export default function EwayBills() {
                       <Select value={editForm.to_state_code ?? ""} onValueChange={(v) => setEditField("to_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -889,14 +889,14 @@ export default function EwayBills() {
                     <p className="font-medium text-sm">{viewingBill.from_name || "—"}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.from_gstin || ""}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.from_place || ""} {viewingBill.from_pincode || ""}</p>
-                    <p className="text-xs text-muted-foreground">{viewingBill.from_state_code ? (INDIAN_STATES.find((s) => s.code === viewingBill.from_state_code)?.name ?? viewingBill.from_state_code) : ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.from_state_code ? (GST_STATES.find((s) => s.code === viewingBill.from_state_code)?.name ?? viewingBill.from_state_code) : ""}</p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">TO (Consignee)</p>
                     <p className="font-medium text-sm">{viewingBill.to_name || "—"}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.to_gstin || ""}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.to_place || ""} {viewingBill.to_pincode || ""}</p>
-                    <p className="text-xs text-muted-foreground">{viewingBill.to_state_code ? (INDIAN_STATES.find((s) => s.code === viewingBill.to_state_code)?.name ?? viewingBill.to_state_code) : ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.to_state_code ? (GST_STATES.find((s) => s.code === viewingBill.to_state_code)?.name ?? viewingBill.to_state_code) : ""}</p>
                   </div>
                 </div>
 
