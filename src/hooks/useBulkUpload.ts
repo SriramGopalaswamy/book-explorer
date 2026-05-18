@@ -448,11 +448,17 @@ export function usePayrollRegisterBulkUpload(payPeriod: string): BulkUploadConfi
         ...(bonus > 0     ? [{ name: "Bonus",     monthly: bonus,     annual: bonus * 12,     is_taxable: true }] : []),
         ...(incentive > 0 ? [{ name: "Incentive", monthly: incentive, annual: incentive * 12, is_taxable: true }] : []),
       ];
+      // Absorb any gap between the file-provided total and component sum into
+      // "Other Deductions" so the breakdown always reconciles with total_deductions
+      // (CLAUDE.md invariant: components must not exceed total; gap → other_ded).
+      const breakdownOtherDed = total_ded_file > 0 && total_ded_file > componentSum
+        ? other_ded_raw + (total_ded_file - componentSum)
+        : other_ded_raw;
       const deductionsBreakdown = [
-        ...(pf_monthly > 0     ? [{ name: "PF Contribution",  monthly: pf_monthly,     annual: pf_monthly * 12,     is_taxable: false }] : []),
-        ...(prof_tax > 0       ? [{ name: "Professional Tax", monthly: prof_tax,       annual: prof_tax * 12,       is_taxable: false }] : []),
-        ...(tds_monthly_raw > 0 ? [{ name: "TDS",             monthly: tds_monthly_raw, annual: tds_monthly_raw * 12, is_taxable: false }] : []),
-        ...(other_ded_raw > 0  ? [{ name: "Other Deductions", monthly: other_ded_raw,  annual: other_ded_raw * 12,  is_taxable: false }] : []),
+        ...(pf_monthly > 0        ? [{ name: "PF Contribution",  monthly: pf_monthly,       annual: pf_monthly * 12,       is_taxable: false }] : []),
+        ...(prof_tax > 0          ? [{ name: "Professional Tax", monthly: prof_tax,         annual: prof_tax * 12,         is_taxable: false }] : []),
+        ...(tds_monthly_raw > 0   ? [{ name: "TDS",              monthly: tds_monthly_raw,  annual: tds_monthly_raw * 12,  is_taxable: false }] : []),
+        ...(breakdownOtherDed > 0 ? [{ name: "Other Deductions", monthly: breakdownOtherDed, annual: breakdownOtherDed * 12, is_taxable: false }] : []),
       ];
 
       pending.push({
