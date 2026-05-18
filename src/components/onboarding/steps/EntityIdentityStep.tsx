@@ -17,14 +17,9 @@ const ENTITY_TYPES = [
   "HUF",
 ];
 
-const INDIAN_STATES = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh","Goa",
-  "Gujarat","Haryana","Himachal Pradesh","Jharkhand","Karnataka","Kerala",
-  "Madhya Pradesh","Maharashtra","Manipur","Meghalaya","Mizoram","Nagaland",
-  "Odisha","Punjab","Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura",
-  "Uttar Pradesh","Uttarakhand","West Bengal","Delhi","Jammu & Kashmir","Ladakh",
-  "Chandigarh","Puducherry","Lakshadweep","Dadra & Nagar Haveli","Andaman & Nicobar",
-];
+import { INDIAN_STATES_ACTIVE } from "@/lib/indian-states";
+
+const STATE_NAMES = [...INDIAN_STATES_ACTIVE].map((s) => s.name).sort((a, b) => a.localeCompare(b));
 
 interface Props {
   data: ComplianceData;
