@@ -9,7 +9,7 @@
  * the delete.
  *
  * STATIC-TEXT scan: extracts the body of every top-level
- * `const deleteMutation = useMutation({` block in `src/pages/**/<Page>.tsx`
+ * `const deleteMutation = useMutation({` block in `src/pages/<area>/<Page>.tsx`
  * and asserts the body contains a preflight signal.
  *
  * Surfaces: GBC-91 (Vendors) plus 5 sibling files (VendorCredits, Quotes,
