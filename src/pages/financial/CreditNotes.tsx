@@ -230,7 +230,7 @@ export default function CreditNotes() {
       // journal entries. Block both paths and direct the user to void instead.
       const [statusCheck, glCheck] = await Promise.all([
         supabase.from("credit_notes").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "applied").limit(1),
-        supabase.from("journal_lines").select("id").eq("reference_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("journal_entries").select("id").eq("source_id", id).eq("source_type", "credit_note").eq("organization_id", orgId).limit(1),
       ]);
       if ((statusCheck.data?.length ?? 0) > 0 || (glCheck.data?.length ?? 0) > 0) {
         throw new Error("Cannot delete this credit note — it has been applied to an invoice or has journal entries. Void it instead.");
