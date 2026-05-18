@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
     .select("role")
     .eq("user_id", user.id)
     .eq("organization_id", DEFAULT_ORG_ID)
-    .in("role", ["admin"])
+    .in("role", ["admin", "hr"])
     .maybeSingle();
 
   if (!roleRow) {

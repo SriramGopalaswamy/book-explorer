@@ -20,7 +20,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { mockEmployees } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { invokeEdge } from "@/lib/invoke-edge";
 import { toast } from "sonner";
