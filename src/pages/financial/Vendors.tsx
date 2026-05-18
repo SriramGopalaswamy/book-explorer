@@ -124,6 +124,24 @@ export default function Vendors() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
+      // GBC-91: Preflight dependency checks. Surface friendly errors instead of
+      // letting raw Postgres FK violations leak through.
+      const [billCheck, poCheck, vcCheck, payCheck] = await Promise.all([
+        supabase.from("bills").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("purchase_orders").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("vendor_credits").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
+        supabase.from("vendor_payments").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
+      ]);
+      if (
+        (billCheck.data?.length ?? 0) > 0 ||
+        (poCheck.data?.length ?? 0) > 0 ||
+        (vcCheck.data?.length ?? 0) > 0 ||
+        (payCheck.data?.length ?? 0) > 0
+      ) {
+        throw new Error(
+          "Cannot delete this vendor — they have linked bills, purchase orders, vendor credits, or payments. Mark them as inactive instead.",
+        );
+      }
       const { data: deleted, error } = await supabase.from("vendors").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0) throw new Error("Vendor not found or could not be deleted.");
