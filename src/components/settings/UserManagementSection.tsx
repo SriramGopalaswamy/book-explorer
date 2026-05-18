@@ -128,8 +128,6 @@ export default function UserManagementSection() {
   const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
   const [actionUser, setActionUser] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  // Role picker state for the Pending Activation section (keyed by user_id)
-  const [pendingRoles, setPendingRoles] = useState<Record<string, string>>({});
   // MS365 manager sync state
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -156,12 +154,6 @@ export default function UserManagementSection() {
     [users]
   );
 
-  // Always visible regardless of search — shown in the Pending Activation banner
-  const pendingUsers = useMemo(
-    () => users.filter((u) => u.status === "pending_approval"),
-    [users]
-  );
-
   // Map from profiles.id → display name — used to resolve manager_id to a name
   const profileIdToName = useMemo(() => {
     const map = new Map<string, string>();
@@ -171,12 +163,10 @@ export default function UserManagementSection() {
     return map;
   }, [users]);
 
-  // Excludes pending_approval — those are handled in their own section above
   const filteredUsers = useMemo(() => {
-    const nonPending = users.filter((u) => u.status !== "pending_approval");
-    if (!searchQuery.trim()) return nonPending;
+    if (!searchQuery.trim()) return users;
     const q = searchQuery.toLowerCase();
-    return nonPending.filter(
+    return users.filter(
       (u) =>
         u.full_name?.toLowerCase().includes(q) ||
         u.email?.toLowerCase().includes(q) ||
@@ -454,7 +444,7 @@ export default function UserManagementSection() {
               User Management
             </CardTitle>
             <CardDescription>
-              Employees appear here after signing in with Microsoft 365. Activate them and assign a role to grant access.
+              Employees appear here after signing in with Microsoft 365. Assign roles and manage access.
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -477,107 +467,6 @@ export default function UserManagementSection() {
           </div>
         </CardHeader>
         <CardContent>
-          {/* ── Pending Activation Banner ── */}
-          {pendingUsers.length > 0 && (
-            <div className="mb-6 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <Clock className="h-4 w-4 text-amber-500" />
-                <h3 className="text-sm font-semibold text-amber-600">
-                  Pending Activation ({pendingUsers.length})
-                </h3>
-              </div>
-              <div className="space-y-2">
-                {pendingUsers.map((u) => {
-                  const selectedRole = pendingRoles[u.user_id] ?? (u.roles[0] || "employee");
-                  return (
-                    <div
-                      key={u.user_id}
-                      className="flex items-center justify-between gap-4 rounded-md border border-amber-500/20 bg-background p-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-sm truncate">
-                          {u.full_name || "Unnamed User"}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                        {u.department && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {u.department}{u.job_title ? ` · ${u.job_title}` : ""}
-                          </p>
-                        )}
-                        {u.manager_id && profileIdToName.get(u.manager_id) && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Reports to: {profileIdToName.get(u.manager_id)}
-                          </p>
-                        )}
-                        {!u.manager_id && u.pending_manager_email && (
-                          <p className="text-xs text-yellow-600 mt-0.5">
-                            Manager pending sync: {u.pending_manager_email}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Select
-                          value={selectedRole}
-                          onValueChange={(val) =>
-                            setPendingRoles((prev) => ({ ...prev, [u.user_id]: val }))
-                          }
-                          disabled={actionUser === u.user_id}
-                        >
-                          <SelectTrigger className="w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="manager">Manager</SelectItem>
-                            <SelectItem value="finance">Finance</SelectItem>
-                            <SelectItem value="hr">HR</SelectItem>
-                            <SelectItem value="payroll">Payroll</SelectItem>
-                            <SelectItem value="employee">Employee</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          className="bg-amber-600 hover:bg-amber-700 text-white shrink-0"
-                          disabled={actionUser === u.user_id}
-                          onClick={() => handleApproveUser(u.user_id, selectedRole)}
-                        >
-                          {actionUser === u.user_id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>
-                              <UserCheck className="h-3 w-3 mr-1" />
-                              Activate
-                            </>
-                          )}
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              disabled={actionUser === u.user_id}
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => initiateDeactivateOrDelete(u, "delete")}
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Remove permanently
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input

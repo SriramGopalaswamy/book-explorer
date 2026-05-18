@@ -105,14 +105,6 @@ export default function AuthCallback() {
           return;
         }
 
-        if (data?.pending) {
-          authTrace("ms365", "navigate_pending_approval", {
-            totalMs: Math.round(performance.now() - tStart),
-          });
-          navigate("/pending-approval", { replace: true });
-          return;
-        }
-
         if (data?.session) {
           // Adopt the session synchronously: decode the JWT, populate
           // AuthContext state immediately, and commit to supabase-js
