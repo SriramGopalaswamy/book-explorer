@@ -148,17 +148,19 @@ describe("AuthCallback (MS365)", () => {
     }, { timeout: 4000 });
   });
 
-  it("routes pending users to /pending-approval instead of '/'", async () => {
+  it("treats a response with no session as an error and redirects to /auth", async () => {
+    // The ms365-auth function no longer returns { pending: true } — all authenticated
+    // users receive a session immediately. A response with no session and no error
+    // (e.g. an unexpected shape) should fall through to the error redirect.
     setOAuthState("s1");
-    invokeMock.mockResolvedValue({ data: { pending: true }, error: null });
+    invokeMock.mockResolvedValue({ data: {}, error: null });
 
     renderCallback("?code=c1&state=s1");
 
-    await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith("/pending-approval", {
-        replace: true,
-      });
-    });
+    await waitFor(
+      () => expect(navigateSpy).toHaveBeenCalledWith("/auth", { replace: true }),
+      { timeout: 4000 },
+    );
     expect(setSessionMock).not.toHaveBeenCalled();
   });
 
