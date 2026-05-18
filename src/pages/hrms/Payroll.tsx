@@ -52,8 +52,6 @@ import {
 } from "@/hooks/usePayroll";
 import { PaySlipDialog } from "@/components/payroll/PaySlipDialog";
 import { EmployeeCombobox } from "@/components/payroll/EmployeeCombobox";
-import { BulkUploadDialog } from "@/components/bulk-upload/BulkUploadDialog";
-import { usePayrollRegisterBulkUpload } from "@/hooks/useBulkUpload";
 import { BulkUploadHistory } from "@/components/bulk-upload/BulkUploadHistory";
 // Lazy-load heavy tab panels — each runs its own data hooks, so eagerly
 // importing them re-fires several queries on every Payroll mount and is
@@ -547,7 +545,6 @@ function PayrollRegisterEmptyState({
 
 export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
-  const bulkUploadConfig = usePayrollRegisterBulkUpload(selectedPeriod);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -965,7 +962,6 @@ export default function Payroll() {
                       Sync Employee Info
                     </Button>
 
-                    <BulkUploadDialog config={bulkUploadConfig} />
                   </div>
                 </CardHeader>
                 <CardContent>
