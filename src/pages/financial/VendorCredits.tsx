@@ -191,6 +191,19 @@ export default function VendorCredits() {
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!orgId) throw new Error("Organization not found");
+      // GBC-91-sibling: Vendor credits are child entities — no FK dependents
+      // exist, but an "applied" credit has already been offset against a bill.
+      // Surface a friendly error rather than silently corrupting bill balances.
+      const statusCheck = await supabase
+        .from("vendor_credits")
+        .select("id")
+        .eq("id", id)
+        .eq("organization_id", orgId)
+        .eq("status", "applied")
+        .limit(1);
+      if ((statusCheck.data?.length ?? 0) > 0) {
+        throw new Error("Cannot delete an applied vendor credit. Void it instead.");
+      }
       const { data: deleted, error } = await supabase.from("vendor_credits").delete().eq("id", id).eq("organization_id", orgId).select("id");
       if (error) throw error;
       if (!deleted || deleted.length === 0) throw new Error("Vendor credit not found or could not be deleted.");
