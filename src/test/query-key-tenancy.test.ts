@@ -66,11 +66,31 @@ const ORG_SCOPED_QUERY_NAMES = new Set<string>([
   "employee-tax-settings",
   "investment-declarations",
   "org-has-transactions",
+  // P-7 expansion (2026-05-18): added per GBC-130. These query an org-scoped
+  // table but the current queryKey omits orgId. Listed below in
+  // EXPECTED_OFFENDERS until the fix lands.
+  "dashboard-sparklines",
+  "audit-compliance-checks",
+  "audit-risk-themes",
+  "audit-ai-anomalies",
+  "audit-ai-samples",
+  "audit-ai-narratives",
+  "audit-ifc-assessments",
 ]);
 
 // Currently-known offenders. Empty as of the GBC-28 punch-list fix; an entry
 // reappearing here means a hook was reverted or a new hook author skipped orgId.
-const EXPECTED_OFFENDERS = new Set<string>([]);
+// 2026-05-18 — GBC-130 surfaced 7 new org-scoped names that omit orgId. Each
+// must be added to its queryKey AND removed from this list in the same PR.
+const EXPECTED_OFFENDERS = new Set<string>([
+  "dashboard-sparklines",         // GBC-130 — useSparklineData.ts:21
+  "audit-compliance-checks",      // GBC-130 — useAuditIntelligence.ts:178
+  "audit-risk-themes",            // GBC-130 — useAuditIntelligence.ts:197
+  "audit-ai-anomalies",           // GBC-130 — useAuditIntelligence.ts:216
+  "audit-ai-samples",             // GBC-130 — useAuditIntelligence.ts:235
+  "audit-ai-narratives",          // GBC-130 — useAuditIntelligence.ts:254
+  "audit-ifc-assessments",        // GBC-130 — useAuditIntelligence.ts:273
+]);
 
 interface Finding {
   hookFile: string;
