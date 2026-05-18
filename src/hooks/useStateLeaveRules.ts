@@ -24,8 +24,12 @@ export interface StateLeaveRule {
   notes: string | null;
 }
 
-/** Indian states with default leave entitlements per Shops & Establishments Act */
-export const INDIAN_STATES = [
+/**
+ * Indian-state default leave entitlements per Shops & Establishments Act.
+ * Domain dataset — NOT a canonical state list. For the canonical states
+ * list, import from `@/lib/indian-states`. (GBC-129 / P-14.)
+ */
+export const STATE_LEAVE_DEFAULTS = [
   { code: "MH", name: "Maharashtra", casual: 7, sick: 7, earned: 21 },
   { code: "KA", name: "Karnataka", casual: 7, sick: 12, earned: 18 },
   { code: "DL", name: "Delhi", casual: 12, sick: 7, earned: 15 },
