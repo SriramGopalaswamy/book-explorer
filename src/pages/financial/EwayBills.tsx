@@ -29,27 +29,12 @@ const STATUS_COLORS: Record<string, string> = {
   extended: "bg-accent/80 text-accent-foreground",
 };
 
-const INDIAN_STATES: { code: string; name: string }[] = [
-  { code: "01", name: "Jammu & Kashmir" }, { code: "02", name: "Himachal Pradesh" },
-  { code: "03", name: "Punjab" }, { code: "04", name: "Chandigarh" },
-  { code: "05", name: "Uttarakhand" }, { code: "06", name: "Haryana" },
-  { code: "07", name: "Delhi" }, { code: "08", name: "Rajasthan" },
-  { code: "09", name: "Uttar Pradesh" }, { code: "10", name: "Bihar" },
-  { code: "11", name: "Sikkim" }, { code: "12", name: "Arunachal Pradesh" },
-  { code: "13", name: "Nagaland" }, { code: "14", name: "Manipur" },
-  { code: "15", name: "Mizoram" }, { code: "16", name: "Tripura" },
-  { code: "17", name: "Meghalaya" }, { code: "18", name: "Assam" },
-  { code: "19", name: "West Bengal" }, { code: "20", name: "Jharkhand" },
-  { code: "21", name: "Odisha" }, { code: "22", name: "Chhattisgarh" },
-  { code: "23", name: "Madhya Pradesh" }, { code: "24", name: "Gujarat" },
-  { code: "25", name: "Daman & Diu" }, { code: "26", name: "Dadra & Nagar Haveli" },
-  { code: "27", name: "Maharashtra" }, { code: "28", name: "Andhra Pradesh (Old)" },
-  { code: "29", name: "Karnataka" }, { code: "30", name: "Goa" },
-  { code: "31", name: "Lakshadweep" }, { code: "32", name: "Kerala" },
-  { code: "33", name: "Tamil Nadu" }, { code: "34", name: "Puducherry" },
-  { code: "35", name: "Andaman & Nicobar" }, { code: "36", name: "Telangana" },
-  { code: "37", name: "Andhra Pradesh" }, { code: "38", name: "Ladakh" },
-];
+import { INDIAN_STATES as CANONICAL_STATES } from "@/lib/indian-states";
+
+// E-way bill APIs key state by 2-digit GST code, not ISO code.
+const GST_STATES: { code: string; name: string }[] = CANONICAL_STATES
+  .map((s) => ({ code: s.gstStateCode, name: s.name }))
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
 const PINCODE_REGEX = /^\d{6}$/;
@@ -415,7 +400,7 @@ export default function EwayBills() {
                       <Select value={form.from_state_code ?? ""} onValueChange={(v) => setField("from_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -443,7 +428,7 @@ export default function EwayBills() {
                       <Select value={form.to_state_code ?? ""} onValueChange={(v) => setField("to_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -672,7 +657,7 @@ export default function EwayBills() {
                       <Select value={editForm.from_state_code ?? ""} onValueChange={(v) => setEditField("from_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -690,7 +675,7 @@ export default function EwayBills() {
                       <Select value={editForm.to_state_code ?? ""} onValueChange={(v) => setEditField("to_state_code", v)}>
                         <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                         <SelectContent>
-                          {[...INDIAN_STATES].sort((a, b) => a.name.localeCompare(b.name)).map((s) => (
+                          {GST_STATES.map((s) => (
                             <SelectItem key={s.code} value={s.code}>{s.name}</SelectItem>
                           ))}
                         </SelectContent>
@@ -904,14 +889,14 @@ export default function EwayBills() {
                     <p className="font-medium text-sm">{viewingBill.from_name || "—"}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.from_gstin || ""}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.from_place || ""} {viewingBill.from_pincode || ""}</p>
-                    <p className="text-xs text-muted-foreground">{viewingBill.from_state_code ? (INDIAN_STATES.find((s) => s.code === viewingBill.from_state_code)?.name ?? viewingBill.from_state_code) : ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.from_state_code ? (GST_STATES.find((s) => s.code === viewingBill.from_state_code)?.name ?? viewingBill.from_state_code) : ""}</p>
                   </div>
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">TO (Consignee)</p>
                     <p className="font-medium text-sm">{viewingBill.to_name || "—"}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.to_gstin || ""}</p>
                     <p className="text-xs text-muted-foreground">{viewingBill.to_place || ""} {viewingBill.to_pincode || ""}</p>
-                    <p className="text-xs text-muted-foreground">{viewingBill.to_state_code ? (INDIAN_STATES.find((s) => s.code === viewingBill.to_state_code)?.name ?? viewingBill.to_state_code) : ""}</p>
+                    <p className="text-xs text-muted-foreground">{viewingBill.to_state_code ? (GST_STATES.find((s) => s.code === viewingBill.to_state_code)?.name ?? viewingBill.to_state_code) : ""}</p>
                   </div>
                 </div>
 

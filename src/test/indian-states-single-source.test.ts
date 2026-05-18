@@ -24,13 +24,11 @@ const SRC_DIR = path.resolve(__dirname, "..");
 
 const CANONICAL_PATH = "lib/indian-states.ts";
 
-const KNOWN_DUPLICATES = [
-  "components/onboarding/steps/EntityIdentityStep.tsx",
-  "hooks/useStateLeaveRules.ts",
-  "pages/financial/EInvoices.tsx",
-  "pages/financial/EwayBills.tsx",
-  "pages/inventory/Warehouses.tsx",
-];
+// GBC-129 SHIPPED (2026-05-18): all 5 duplicates collapsed into
+// `src/lib/indian-states.ts`. KNOWN_DUPLICATES is intentionally empty —
+// any new entry detected by this probe is a regression: import from
+// `@/lib/indian-states` instead.
+const KNOWN_DUPLICATES: string[] = [];
 
 function* walk(dir: string): Generator<string> {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -54,22 +52,19 @@ describe("P-14 — INDIAN_STATES single source", () => {
     if (DECL_REGEX.test(src)) decls.push(path.relative(SRC_DIR, file));
   }
 
-  it("exactly one module declares INDIAN_STATES (or, until GBC-129 ships, only the known duplicates)", () => {
-    // Goal state: only `lib/indian-states.ts`.
-    // Today's state: the four known duplicates. Loosen the test only as much
-    // as today's reality demands — anything new must be rejected.
-    const knownAndCanonical = new Set<string>([CANONICAL_PATH, ...KNOWN_DUPLICATES]);
-    const unexpected = decls.filter((f) => !knownAndCanonical.has(f));
+  it("only the canonical lib/indian-states.ts declares INDIAN_STATES", () => {
+    const allowed = new Set<string>([CANONICAL_PATH, ...KNOWN_DUPLICATES]);
+    const unexpected = decls.filter((f) => !allowed.has(f));
     expect(
       unexpected,
-      `New INDIAN_STATES declarations detected. Import from src/lib/indian-states.ts instead (GBC-129):\n${unexpected.join("\n")}`
+      `New INDIAN_STATES declarations detected. Import from src/lib/indian-states.ts instead (GBC-129):\n${unexpected.join("\n")}`,
     ).toEqual([]);
   });
 
-  it("at most 5 known declarations remain until GBC-129 fix lands", () => {
+  it("exactly one declaration remains (the canonical lib)", () => {
     expect(
       decls.length,
-      `Expected ≤ 5 INDIAN_STATES declarations (GBC-129 duplicates); got ${decls.length}:\n${decls.join("\n")}`
-    ).toBeLessThanOrEqual(5);
+      `Expected exactly 1 INDIAN_STATES declaration (canonical lib); got ${decls.length}:\n${decls.join("\n")}`,
+    ).toBeLessThanOrEqual(1);
   });
 });

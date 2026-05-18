@@ -16,16 +16,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, Warehouse, Search, Trash2, MoreHorizontal, Edit, Eye, ToggleLeft, ToggleRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const INDIAN_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
-  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
-  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
-  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
-  "Uttar Pradesh", "Uttarakhand", "West Bengal",
-  "Andaman & Nicobar", "Chandigarh", "Dadra & Nagar Haveli",
-  "Delhi", "Jammu & Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
-];
+import { INDIAN_STATES_ACTIVE } from "@/lib/indian-states";
+
+// Warehouse `state` is persisted as the full state name (no schema migration
+// needed). Sorted alphabetically for the selector.
+const STATE_NAMES = [...INDIAN_STATES_ACTIVE]
+  .map((s) => s.name)
+  .sort((a, b) => a.localeCompare(b));
 
 export default function Warehouses() {
   const { data: warehouses, isLoading } = useWarehouses();
@@ -117,7 +114,7 @@ export default function Warehouses() {
                     <Select value={form.state} onValueChange={v => setForm(f => ({ ...f, state: v }))}>
                       <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
                       <SelectContent>
-                        {INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        {STATE_NAMES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -219,7 +216,7 @@ export default function Warehouses() {
                   <Label>State</Label>
                   <Select value={editForm.state} onValueChange={v => setEditForm({ ...editForm, state: v })}>
                     <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                    <SelectContent>{INDIAN_STATES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                    <SelectContent>{STATE_NAMES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div><Label>Contact Person</Label><Input value={editForm.contact_person} onChange={e => setEditForm({ ...editForm, contact_person: e.target.value })} /></div>

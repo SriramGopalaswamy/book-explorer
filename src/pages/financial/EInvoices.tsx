@@ -25,18 +25,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Textarea } from "@/components/ui/textarea";
 
-const INDIAN_STATES: Record<string, string> = {
-  "01": "Jammu & Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
-  "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan",
-  "09": "Uttar Pradesh", "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh",
-  "13": "Nagaland", "14": "Manipur", "15": "Mizoram", "16": "Tripura",
-  "17": "Meghalaya", "18": "Assam", "19": "West Bengal", "20": "Jharkhand",
-  "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
-  "26": "Dadra & Nagar Haveli", "27": "Maharashtra", "29": "Karnataka",
-  "30": "Goa", "31": "Lakshadweep", "32": "Kerala", "33": "Tamil Nadu",
-  "34": "Puducherry", "35": "Andaman & Nicobar", "36": "Telangana",
-  "37": "Andhra Pradesh", "38": "Ladakh",
-};
+import { GST_STATE_CODE_TO_NAME } from "@/lib/indian-states";
+
+// Alias for callsite brevity. Maps "29" → "Karnataka", etc.
+const STATE_NAMES_BY_GST: Record<string, string> = GST_STATE_CODE_TO_NAME;
 
 const SUPPLY_TYPES = [
   { value: "B2B", label: "B2B — Business to Business" },
@@ -226,7 +218,7 @@ export default function EInvoices() {
             ${inv.seller_gstin ? `<div class="gstin">${esc(inv.seller_gstin)}</div>` : ""}
             ${inv.seller_address ? `<div style="font-size:10px;margin-top:4px">${esc(inv.seller_address)}</div>` : ""}
             ${inv.seller_location ? `<div style="font-size:10px">${esc(inv.seller_location)}</div>` : ""}
-            ${inv.seller_state_code ? `<div style="font-size:10px">${esc(INDIAN_STATES[inv.seller_state_code] || "")}${inv.seller_pincode ? ` — ${esc(inv.seller_pincode)}` : ""}</div>` : ""}
+            ${inv.seller_state_code ? `<div style="font-size:10px">${esc(STATE_NAMES_BY_GST[inv.seller_state_code] || "")}${inv.seller_pincode ? ` — ${esc(inv.seller_pincode)}` : ""}</div>` : ""}
           </div>
           <div class="party-box">
             <h3>Buyer</h3>
@@ -235,7 +227,7 @@ export default function EInvoices() {
             ${inv.buyer_gstin ? `<div class="gstin">${esc(inv.buyer_gstin)}</div>` : ""}
             ${inv.buyer_address ? `<div style="font-size:10px;margin-top:4px">${esc(inv.buyer_address)}</div>` : ""}
             ${inv.buyer_location ? `<div style="font-size:10px">${esc(inv.buyer_location)}</div>` : ""}
-            ${inv.buyer_state_code ? `<div style="font-size:10px">${esc(INDIAN_STATES[inv.buyer_state_code] || "")}${inv.buyer_pincode ? ` — ${esc(inv.buyer_pincode)}` : ""}</div>` : ""}
+            ${inv.buyer_state_code ? `<div style="font-size:10px">${esc(STATE_NAMES_BY_GST[inv.buyer_state_code] || "")}${inv.buyer_pincode ? ` — ${esc(inv.buyer_pincode)}` : ""}</div>` : ""}
           </div>
         </div>
         ${lineItems.length > 0 ? `
@@ -482,7 +474,7 @@ export default function EInvoices() {
                         <Label>State *</Label>
                         <Select value={form.seller_state_code} onValueChange={(v) => setForm(p => ({ ...p, seller_state_code: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>{Object.entries(INDIAN_STATES).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{Object.entries(STATE_NAMES_BY_GST).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -503,7 +495,7 @@ export default function EInvoices() {
                         <Label>State / Place of Supply *</Label>
                         <Select value={form.buyer_state_code} onValueChange={(v) => setForm(p => ({ ...p, buyer_state_code: v, buyer_pos: v }))}>
                           <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
-                          <SelectContent>{Object.entries(INDIAN_STATES).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
+                          <SelectContent>{Object.entries(STATE_NAMES_BY_GST).sort((a, b) => a[1].localeCompare(b[1])).map(([code, name]) => <SelectItem key={code} value={code}>{name}</SelectItem>)}</SelectContent>
                         </Select>
                       </div>
                     </div>
@@ -773,7 +765,7 @@ export default function EInvoices() {
                   {viewingEInvoice.seller_location && <p className="text-xs text-muted-foreground">{viewingEInvoice.seller_location}</p>}
                   {(viewingEInvoice.seller_pincode || viewingEInvoice.seller_state_code) && (
                     <p className="text-xs text-muted-foreground">
-                      {viewingEInvoice.seller_state_code && INDIAN_STATES[viewingEInvoice.seller_state_code]}
+                      {viewingEInvoice.seller_state_code && STATE_NAMES_BY_GST[viewingEInvoice.seller_state_code]}
                       {viewingEInvoice.seller_pincode && ` — ${viewingEInvoice.seller_pincode}`}
                     </p>
                   )}
@@ -787,12 +779,12 @@ export default function EInvoices() {
                   {viewingEInvoice.buyer_location && <p className="text-xs text-muted-foreground">{viewingEInvoice.buyer_location}</p>}
                   {(viewingEInvoice.buyer_pincode || viewingEInvoice.buyer_state_code) && (
                     <p className="text-xs text-muted-foreground">
-                      {viewingEInvoice.buyer_state_code && INDIAN_STATES[viewingEInvoice.buyer_state_code]}
+                      {viewingEInvoice.buyer_state_code && STATE_NAMES_BY_GST[viewingEInvoice.buyer_state_code]}
                       {viewingEInvoice.buyer_pincode && ` — ${viewingEInvoice.buyer_pincode}`}
                     </p>
                   )}
                   {viewingEInvoice.buyer_pos && viewingEInvoice.buyer_pos !== viewingEInvoice.buyer_state_code && (
-                    <p className="text-xs text-muted-foreground">POS: {INDIAN_STATES[viewingEInvoice.buyer_pos] || viewingEInvoice.buyer_pos}</p>
+                    <p className="text-xs text-muted-foreground">POS: {STATE_NAMES_BY_GST[viewingEInvoice.buyer_pos] || viewingEInvoice.buyer_pos}</p>
                   )}
                 </div>
               </div>
