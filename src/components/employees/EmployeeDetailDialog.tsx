@@ -28,6 +28,9 @@ import {
 } from "@/hooks/useEmployeeDetails";
 import { CompensationTab } from "./CompensationTab";
 import { DocumentsTab } from "./DocumentsTab";
+import { validatePAN, validatePincode } from "@/lib/country-validation";
+import { toast } from "sonner";
+
 
 const statusStyles: Record<string, string> = {
   active: "bg-success/10 text-success border-success/30",
