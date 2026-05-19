@@ -177,57 +177,12 @@ export function useUpdateTransferStatus() {
       if (!user) throw new Error("Not authenticated");
       if (!VALID_TRANSFER_STATUSES.includes(status as any)) throw new Error(`Invalid transfer status: ${status}`);
 
-      // Resolve caller org for tenant isolation
-      const { data: profile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      const callerOrgId = profile?.organization_id;
-      if (!callerOrgId) throw new Error("Organization not found");
-
-      // ── Lifecycle state-machine ───────────────────────────────
-      const TRANSFER_TRANSITIONS: Record<string, string[]> = {
-        draft: ["in_transit", "cancelled"],
-        in_transit: ["received", "cancelled"],
-        received: [],    // terminal
-        cancelled: [],   // terminal
-      };
-
-      const { data: current, error: fetchErr } = await supabase
-        .from("stock_transfers").select("status, from_warehouse_id, to_warehouse_id").eq("id", id).eq("organization_id", callerOrgId).single();
-      if (fetchErr) throw fetchErr;
-      const currentStatus = (current as any)?.status;
-      const allowed = TRANSFER_TRANSITIONS[currentStatus];
-      if (!allowed || !allowed.includes(status)) {
-        throw new Error(`Cannot change transfer from "${currentStatus}" to "${status}".`);
-      }
-
-      const { error } = await supabase.from("stock_transfers").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
-      if (error) throw error;
-
-      // ── Atomic stock movement when transfer is received (GBC-67) ──
-      // Fetch all items for this transfer and call process_stock_transfer per line
-      // so the inventory check, deduct/add, and ledger inserts all happen
-      // server-side under a single transaction per item — no partial frontend state.
-      if (status === "received") {
-        const { data: lineItems, error: liErr } = await supabase
-          .from("stock_transfer_items")
-          .select("id, item_id, quantity")
-          .eq("transfer_id", id);
-        if (liErr) throw liErr;
-        for (const li of (lineItems as any[]) || []) {
-          if (!li.item_id) {
-            throw new Error("Cannot receive: a transfer line has no catalog item linked.");
-          }
-          const { error: rpcErr } = await (supabase as any).rpc("process_stock_transfer", {
-            p_org_id: callerOrgId,
-            p_item_id: li.item_id,
-            p_from_warehouse: (current as any).from_warehouse_id,
-            p_to_warehouse: (current as any).to_warehouse_id,
-            p_quantity: Number(li.quantity),
-            p_initiated_by: user.id,
-            p_transfer_id: id,
-          });
-          if (rpcErr) throw new Error(rpcErr.message);
-        }
-      }
+      // GBC-113: status flip + stock movement now atomic in a single RPC.
+      const { error } = await (supabase as any).rpc("update_stock_transfer_status", {
+        p_transfer_id: id,
+        p_new_status: status,
+      });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["stock-transfers"] }); qc.invalidateQueries({ queryKey: ["stock-ledger"] }); toast.success("Status updated"); },
     onError: (e: any) => toast.error(e.message),

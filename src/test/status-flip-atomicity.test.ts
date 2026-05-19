@@ -66,10 +66,7 @@ const ANTI_PATTERN = new RegExp(
 );
 
 /** Known offenders today. Each must migrate to a single RPC or DB trigger. */
-const EXPECTED_OFFENDERS: Record<string, string> = {
-  "hooks/useDocumentChains.ts": "GBC-123 (delivery delivered), GBC-127 (partial ship)",
-  "hooks/useWarehouse.ts": "GBC-113 (stock transfer received loop)",
-};
+const EXPECTED_OFFENDERS: Record<string, string> = {};
 
 
 function* walk(dir: string): Generator<string> {

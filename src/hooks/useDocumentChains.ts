@@ -163,26 +163,12 @@ export function useUpdateGRStatus() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!user) throw new Error("Not authenticated");
-      const callerOrgId = await resolveCallerOrg(user.id);
-
-      const { data: current } = await supabase.from("goods_receipts").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
-      if (!current) throw new Error("Goods receipt not found in your organization.");
-      const currentStatus = (current as any)?.status;
-      const allowed = GR_TRANSITIONS[currentStatus];
-      if (!allowed || !allowed.includes(status)) {
-        throw new Error(`Cannot transition GR from "${currentStatus}" to "${status}"`);
-      }
-      const { error } = await supabase.from("goods_receipts").update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
-      if (error) throw error;
-
-      // ── Auto stock-in when GR is accepted ──
-      if (status === "accepted") {
-        try {
-          await postGoodsReceiptStock(id);
-        } catch (stockErr: any) {
-          toast.error(`Stock ledger sync failed for GR: ${stockErr?.message ?? stockErr}`);
-        }
-      }
+      // GBC-: atomic status flip + stock-in on accept.
+      const { error } = await (supabase as any).rpc("update_goods_receipt_status", {
+        p_gr_id: id,
+        p_new_status: status,
+      });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goods-receipts"] }); qc.invalidateQueries({ queryKey: ["stock-ledger"] }); toast.success("GR status updated"); },
     onError: (e: any) => toast.error(e.message),
@@ -359,39 +345,12 @@ export function useUpdateDNStatus() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!user) throw new Error("Not authenticated");
-      const callerOrgId = await resolveCallerOrg(user.id);
-
-      const { data: current } = await supabase.from("delivery_notes").select("status, sales_order_id").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
-      if (!current) throw new Error("Delivery note not found in your organization.");
-      const currentStatus = (current as any)?.status;
-      const allowed = DN_TRANSITIONS[currentStatus];
-      if (!allowed || !allowed.includes(status)) {
-        throw new Error(`Cannot transition DN from "${currentStatus}" to "${status}"`);
-      }
-      const { error } = await supabase.from("delivery_notes").update({ status, updated_at: new Date().toISOString() } as any).eq("id", id).eq("organization_id", callerOrgId);
-      if (error) throw error;
-
-      // ── Auto stock-out when DN is delivered ──
-      if (status === "delivered") {
-        try {
-          await postDeliveryNoteStock(id);
-        } catch (stockErr: any) {
-          toast.error(`Stock ledger sync failed for DN: ${stockErr?.message ?? stockErr}`);
-        }
-      }
-
-      // Auto-update SO status when DN is delivered or returned (org-scoped)
-      const soId = (current as any)?.sales_order_id;
-      if (status === "delivered" && soId) {
-        await supabase.from("sales_orders").update({ status: "delivered" } as any).eq("id", soId).eq("organization_id", callerOrgId);
-      } else if (status === "returned" && soId) {
-        await supabase.from("sales_orders").update({ status: "returned" } as any).eq("id", soId).eq("organization_id", callerOrgId);
-      } else if (status === "dispatched" && soId) {
-        const { data: so } = await supabase.from("sales_orders").select("status").eq("id", soId).eq("organization_id", callerOrgId).maybeSingle();
-        if ((so as any)?.status === "processing" || (so as any)?.status === "confirmed") {
-          await supabase.from("sales_orders").update({ status: "shipped" } as any).eq("id", soId).eq("organization_id", callerOrgId);
-        }
-      }
+      // GBC-123/127: status flip + stock-out + SO cascade now atomic in a single RPC.
+      const { error } = await (supabase as any).rpc("update_delivery_note_status", {
+        p_dn_id: id,
+        p_new_status: status,
+      });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["delivery-notes"] });
