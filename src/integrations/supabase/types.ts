@@ -15313,6 +15313,10 @@ export type Database = {
         Args: { p_dn_id: string; p_new_status: string }
         Returns: undefined
       }
+      update_goods_receipt_status: {
+        Args: { p_gr_id: string; p_new_status: string }
+        Returns: undefined
+      }
       update_invoice_with_lines: {
         Args: {
           p_expected_version?: number
