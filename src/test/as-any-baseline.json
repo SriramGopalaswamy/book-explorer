@@ -24,7 +24,7 @@
   "hooks/useInventory.ts": 9,
   "hooks/useInvoices.ts": 10,
   "hooks/useJobQueue.ts": 2,
-  "hooks/useLeaves.ts": 5,
+  "hooks/useLeaves.ts": 6,
   "hooks/useLedger.ts": 3,
   "hooks/useManufacturing.ts": 32,
   "hooks/useMasterCTCComponents.ts": 2,
