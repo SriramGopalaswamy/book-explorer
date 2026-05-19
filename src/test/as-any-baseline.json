@@ -5,7 +5,7 @@
   "hooks/useAssets.ts": 9,
   "hooks/useAttendanceEngine.ts": 2,
   "hooks/useBackgroundJobs.ts": 2,
-  "hooks/useBanking.ts": 3,
+  "hooks/useBanking.ts": 2,
   "hooks/useBulkUpload.ts": 3,
   "hooks/useCompensationRevisions.ts": 7,
   "hooks/useConnectors.ts": 4,

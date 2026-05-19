@@ -7,6 +7,20 @@ import { mockBankAccounts, mockBankTransactions } from "@/lib/mock-data";
 import { toast } from "sonner";
 import { createBankAccountSchema, createTransactionSchema } from "@/lib/validation-schemas";
 
+type RecordBankTransactionRpc = (
+  fn: "record_bank_transaction",
+  args: {
+    p_org_id: string;
+    p_account_id: string;
+    p_transaction_type: string;
+    p_amount: number;
+    p_description: string;
+    p_category: string | null;
+    p_transaction_date: string;
+    p_user_id: string;
+  },
+) => Promise<{ data: string | null; error: unknown }>;
+
 export interface BankAccount {
   id: string;
   user_id: string;
@@ -260,56 +274,33 @@ export function useCreateTransaction() {
 
       const validated = createTransactionSchema.parse(data);
 
-      // Prevent future-dated transactions
       const today = new Date().toISOString().split("T")[0];
       if (validated.transaction_date > today) {
         throw new Error("Transaction date cannot be in the future.");
       }
 
-      // Verify the linked bank account exists, is active, and belongs to caller's org
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
+      const { data: callerProfile } = await supabase
+        .from("profiles")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
       if (!callerProfile?.organization_id) throw new Error("Organization not found");
 
-      const { data: account, error: acctErr } = await supabase
-        .from("bank_accounts")
-        .select("balance, status")
-        .eq("id", validated.account_id)
-        .eq("organization_id", callerProfile.organization_id)
-        .single();
-      if (acctErr || !account) throw new Error("Bank account not found in your organization.");
-      if ((account as any).status === "Closed") {
-        throw new Error("Cannot add transactions to a closed bank account.");
-      }
-
-      // Create transaction
-      const { data: transaction, error } = await supabase
-        .from("bank_transactions")
-        .insert({
-          account_id: validated.account_id,
-          transaction_type: validated.transaction_type,
-          amount: validated.amount,
-          description: validated.description,
-          category: validated.category ?? null,
-          transaction_date: validated.transaction_date,
-          user_id: user.id,
-          organization_id: callerProfile.organization_id,
-        })
-        .select()
-        .single();
+      const { data: txnId, error } = await (supabase.rpc as unknown as RecordBankTransactionRpc)(
+        "record_bank_transaction",
+        {
+          p_org_id: callerProfile.organization_id,
+          p_account_id: validated.account_id,
+          p_transaction_type: validated.transaction_type,
+          p_amount: Number(validated.amount),
+          p_description: validated.description,
+          p_category: validated.category ?? null,
+          p_transaction_date: validated.transaction_date,
+          p_user_id: user.id,
+        },
+      );
       if (error) throw error;
-
-      // Update account balance (org-scoped)
-      const newBalance = validated.transaction_type === "credit"
-        ? Number(account.balance) + Number(validated.amount)
-        : Number(account.balance) - Number(validated.amount);
-
-      await supabase
-        .from("bank_accounts")
-        .update({ balance: newBalance })
-        .eq("id", validated.account_id)
-        .eq("organization_id", callerProfile.organization_id);
-
-      return transaction;
+      return txnId;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
