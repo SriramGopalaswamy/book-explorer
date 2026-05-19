@@ -150,6 +150,66 @@ const PO_TRANSITIONS: Record<string, string[]> = {
   received: ["closed"],
 };
 
+export function useEditPurchaseOrder() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useMutation({
+    mutationFn: async (params: {
+      id: string;
+      vendor_name: string;
+      vendor_id?: string;
+      order_date: string;
+      expected_delivery?: string;
+      notes?: string;
+      items: { description: string; quantity: number; unit_price: number; tax_rate: number; item_id?: string }[];
+    }) => {
+      if (!user || !orgId) throw new Error("Not authenticated");
+      if (!params.vendor_name.trim()) throw new Error("Vendor name is required.");
+      if (!params.order_date) throw new Error("Order date is required.");
+      if (params.items.length === 0) throw new Error("At least one line item is required.");
+      if (params.items.some(i => !i.description?.trim())) throw new Error("All line items must have a description.");
+      if (params.items.some(i => i.quantity <= 0)) throw new Error("All quantities must be greater than zero.");
+      if (params.items.some(i => i.unit_price < 0)) throw new Error("Unit prices cannot be negative.");
+
+      const subtotal = params.items.reduce((s, i) => s + i.quantity * i.unit_price, 0);
+      const tax = params.items.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
+
+      const header = {
+        vendor_name: params.vendor_name.trim(),
+        vendor_id: params.vendor_id || null,
+        order_date: params.order_date,
+        expected_delivery: params.expected_delivery || null,
+        notes: params.notes || null,
+        subtotal,
+        tax_amount: Math.round(tax * 100) / 100,
+        total_amount: Math.round((subtotal + tax) * 100) / 100,
+      };
+      const lines = params.items.map(i => ({
+        description: i.description,
+        quantity: i.quantity,
+        unit_price: i.unit_price,
+        tax_rate: i.tax_rate,
+        amount: Math.round(i.quantity * i.unit_price * (1 + i.tax_rate / 100) * 100) / 100,
+        item_id: i.item_id || null,
+      }));
+
+      const { error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>)(
+        "update_purchase_order_with_lines",
+        { p_po_id: params.id, p_header: header, p_lines: lines },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["purchase-orders"] });
+      toast.success("Purchase order updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 export function useDeletePurchaseOrder() {
   const qc = useQueryClient();
   return useMutation({
