@@ -31,7 +31,8 @@ export function useGLAccounts() {
         .select("*")
         .eq("organization_id", orgId!)
         .eq("is_active", true)
-        .order("code");
+        .order("code")
+        .limit(500);
       if (error) throw error;
       return (data || []) as GLAccount[];
     },
@@ -68,6 +69,41 @@ export interface JournalLine {
 
 export interface JournalEntryWithLines extends JournalEntry {
   journal_lines: JournalLine[];
+}
+
+// ─── Journal KPIs (server-side counts, not limited to 200-row window) ──────
+export interface JournalKpis {
+  total: number;
+  posted: number;
+  locked: number;
+  reversed: number;
+}
+
+export function useJournalKpis() {
+  const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
+  return useQuery({
+    queryKey: ["journal-kpis", orgId],
+    queryFn: async (): Promise<JournalKpis> => {
+      if (!orgId) return { total: 0, posted: 0, locked: 0, reversed: 0 };
+      const [totalRes, postedRes, lockedRes, reversedRes] = await Promise.all([
+        supabase.from("journal_entries").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
+        supabase.from("journal_entries").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "posted"),
+        supabase.from("journal_entries").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "locked"),
+        supabase.from("journal_entries").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "reversed"),
+      ]);
+      return {
+        total: totalRes.count ?? 0,
+        posted: postedRes.count ?? 0,
+        locked: lockedRes.count ?? 0,
+        reversed: reversedRes.count ?? 0,
+      };
+    },
+    enabled: !!user && !!orgId,
+    staleTime: 60_000,
+  });
 }
 
 export function useJournalEntries(periodId?: string) {

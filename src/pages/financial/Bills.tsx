@@ -40,6 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/hooks/useOpenFiscalPeriods";
+import { useVendorCreditsForVendor, useApplyVendorCredit, useVendorCreditApplications } from "@/hooks/useVendorCredits";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { toast } from "sonner";
 
@@ -400,6 +401,10 @@ export default function Bills() {
   const [previewBill, setPreviewBill] = useState<any>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
+  // GBC-88/GBC-100: Apply vendor credit state
+  const [applyingCreditId, setApplyingCreditId] = useState<string | null>(null);
+  const [applyCreditAmount, setApplyCreditAmount] = useState("");
+
   // Upload / AI state
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -447,20 +452,7 @@ export default function Bills() {
     () => (vendors as any[]).find((v: any) => v.name === form.vendor_name?.trim())?.id ?? null,
     [vendors, form.vendor_name],
   );
-  const { data: vendorCredits } = useQuery({
-    queryKey: ["vendor-credits-available", orgId, selectedVendorId],
-    queryFn: async () => {
-      if (!orgId || !selectedVendorId) return null;
-      const { data, error } = await supabase.rpc("get_vendor_available_credits" as any, {
-        p_vendor_id: selectedVendorId,
-        p_org_id: orgId,
-      });
-      if (error) throw error;
-      return data as unknown as { total_available: number; credits: any[] } | null;
-    },
-    enabled: !!orgId && !!selectedVendorId,
-    staleTime: 30_000,
-  });
+  const { data: vendorCredits } = useVendorCreditsForVendor(selectedVendorId);
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
@@ -689,6 +681,11 @@ export default function Bills() {
     }
   };
 
+
+  // ─── GBC-88/GBC-100: Vendor credit application ─────────────────────────────
+  const applyVendorCredit = useApplyVendorCredit();
+  const { data: previewBillCredits } = useVendorCreditsForVendor(previewBill?.vendor_id ?? null);
+  const { data: appliedCredits } = useVendorCreditApplications(previewBill?.id);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1418,7 +1415,7 @@ export default function Bills() {
 
       {/* ════════════ Preview Dialog ════════════ */}
       {previewBill && (
-        <Dialog open={!!previewBill} onOpenChange={(v) => { if (!v) { setPreviewBill(null); setPreviewUrl(null); } }}>
+        <Dialog open={!!previewBill} onOpenChange={(v) => { if (!v) { setPreviewBill(null); setPreviewUrl(null); setApplyingCreditId(null); setApplyCreditAmount(""); } }}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1496,6 +1493,79 @@ export default function Bills() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Notes</p>
                   <p className="text-sm bg-muted/40 rounded p-2">{previewBill.notes}</p>
+                </div>
+              )}
+
+              {/* GBC-88/GBC-100: Applied credits */}
+              {appliedCredits && appliedCredits.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Credits Applied</p>
+                  <div className="space-y-1">
+                    {appliedCredits.map((a) => (
+                      <div key={a.id} className="flex justify-between text-sm text-muted-foreground">
+                        <span>{a.vendor_credits?.vendor_credit_number ?? "Credit"}</span>
+                        <span className="text-green-600 font-medium">−{fmt(Number(a.applied_amount))}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* GBC-88/GBC-100: Apply available vendor credits */}
+              {previewBill.status !== "paid" && previewBillCredits && Number(previewBillCredits.total_available) > 0 && (
+                <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-900 dark:bg-green-950/30 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    {fmt(Number(previewBillCredits.total_available))} in vendor credits available
+                  </p>
+                  {previewBillCredits.credits.map((credit) => (
+                    <div key={credit.id} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-foreground">{credit.vendor_credit_number}</span>
+                        <span className="text-muted-foreground">Available: {fmt(Number(credit.remaining_amount))}</span>
+                      </div>
+                      {applyingCreditId === credit.id ? (
+                        <div className="flex gap-2">
+                          <Input
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            max={credit.remaining_amount}
+                            placeholder={`Max ${fmt(Number(credit.remaining_amount))}`}
+                            value={applyCreditAmount}
+                            onChange={(e) => setApplyCreditAmount(e.target.value)}
+                            className="h-7 text-xs"
+                          />
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs px-2"
+                            disabled={applyVendorCredit.isPending || !applyCreditAmount}
+                            onClick={() => {
+                              const amount = parseFloat(applyCreditAmount);
+                              applyVendorCredit.mutate(
+                                { creditId: credit.id, billId: previewBill.id, amount, vendorId: previewBill.vendor_id },
+                                { onSuccess: () => { setApplyingCreditId(null); setApplyCreditAmount(""); } },
+                              );
+                            }}
+                          >
+                            {applyVendorCredit.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Apply"}
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => { setApplyingCreditId(null); setApplyCreditAmount(""); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-xs border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300"
+                          onClick={() => { setApplyingCreditId(credit.id); setApplyCreditAmount(String(credit.remaining_amount)); }}
+                        >
+                          Apply this credit
+                        </Button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
 

@@ -55,6 +55,8 @@ export function useUpdateItem() {
       if (!user) throw new Error("Not authenticated");
       if (updates.selling_price !== undefined && updates.selling_price < 0) throw new Error("Selling price cannot be negative");
       if (updates.purchase_price !== undefined && updates.purchase_price < 0) throw new Error("Purchase price cannot be negative");
+      // GBC-147: current_stock is managed by stock_ledger triggers; never overwrite via edit form
+      delete updates.current_stock;
       const orgId = (await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle()).data?.organization_id;
       if (!orgId) throw new Error("No organization found");
       const { data, error } = await supabase.from("items").update(updates).eq("id", id).eq("organization_id", orgId).select();
@@ -236,6 +238,72 @@ export function useDeleteWarehouse() {
 }
 
 // ─── Stock Ledger ───
+
+// ─── Inventory Item KPIs (server-side — GBC-148) ────────────────────────────
+export interface InventoryKpis {
+  totalSkus: number;
+  lowStock: number;
+  outOfStock: number;
+  stockValue: number;
+}
+
+export function useInventoryKpis() {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["inventory-kpis", orgId],
+    enabled: !!user && !!orgId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<InventoryKpis> => {
+      if (!orgId) return { totalSkus: 0, lowStock: 0, outOfStock: 0, stockValue: 0 };
+      const { data, error } = await supabase.rpc("get_inventory_kpi_stats", { p_org_id: orgId });
+      if (error) throw error;
+      const d = (data ?? {}) as Record<string, number>;
+      return {
+        totalSkus: Number(d.total_skus ?? 0),
+        lowStock: Number(d.low_stock ?? 0),
+        outOfStock: Number(d.out_of_stock ?? 0),
+        stockValue: Number(d.stock_value ?? 0),
+      };
+    },
+  });
+}
+
+// ─── Stock Ledger KPIs (server-side, not limited to the loaded window) ──────
+export interface StockLedgerKpis {
+  totalEntries: number;
+  stockIn: number;
+  stockOut: number;
+}
+
+export function useStockLedgerKpis(itemId?: string, warehouseId?: string) {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["stock-ledger-kpis", itemId, warehouseId, orgId],
+    enabled: !!user && !!orgId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<StockLedgerKpis> => {
+      if (!orgId) return { totalEntries: 0, stockIn: 0, stockOut: 0 };
+      const { data, error } = await supabase.rpc("get_stock_ledger_kpis", {
+        p_org_id: orgId,
+        p_item_id: itemId ?? null,
+        p_warehouse_id: warehouseId ?? null,
+      });
+      if (error) throw error;
+      const d = (data ?? {}) as Record<string, number>;
+      return {
+        totalEntries: Number(d.total_entries ?? 0),
+        stockIn: Number(d.stock_in ?? 0),
+        stockOut: Number(d.stock_out ?? 0),
+      };
+    },
+  });
+}
 
 export function useStockLedger(itemId?: string, warehouseId?: string) {
   const { user } = useAuth();

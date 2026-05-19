@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { usePayrollFlags, type PayrollFlags } from "@/hooks/usePayrollFlags";
+import { captureError } from "@/lib/monitoring";
 import { toast } from "sonner";
 
 export interface PayrollRun {
@@ -424,7 +425,10 @@ export function useGeneratePayroll() {
         const rawNetPay = grossEarnings - totalDeductions;
         const netPay = Math.max(rawNetPay, 0);
         if (rawNetPay < 0) {
-          console.warn(`[Payroll] Negative net pay for profile ${s.profile_id}: gross=${grossEarnings}, deductions=${totalDeductions}. Clamped to 0.`);
+          captureError(
+            new Error(`Negative net pay clamped to 0`),
+            { context: "usePayrollEngine.processRun", profile_id: s.profile_id, gross: grossEarnings, deductions: totalDeductions },
+          );
         }
 
         return {

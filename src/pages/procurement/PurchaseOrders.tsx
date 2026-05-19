@@ -15,10 +15,10 @@ import { ExportDialog } from "@/components/ui/export-dialog";
 import { exportPurchaseOrdersCsv } from "@/lib/server-export";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Plus, ShoppingCart, Clock, CheckCircle, Package, Search, Trash2, Pencil, Eye, XCircle, MoreHorizontal } from "lucide-react";
-import { useCreatePurchaseOrder, useUpdatePOStatus, useDeletePurchaseOrder, PurchaseOrder } from "@/hooks/usePurchaseOrders";
+import { useCreatePurchaseOrder, useEditPurchaseOrder, useUpdatePOStatus, useDeletePurchaseOrder, PurchaseOrder } from "@/hooks/usePurchaseOrders";
 import { usePaginatedPurchaseOrders, usePurchaseOrderKpis } from "@/hooks/usePaginatedPurchaseOrders";
 import { format } from "date-fns";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
@@ -47,12 +47,12 @@ const PO_TRANSITIONS: Record<string, string[]> = {
 
 export default function PurchaseOrders() {
   const createPO = useCreatePurchaseOrder();
+  const editPO = useEditPurchaseOrder();
   const updateStatus = useUpdatePOStatus();
   const deletePO = useDeletePurchaseOrder();
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
@@ -150,51 +150,27 @@ export default function PurchaseOrders() {
     setEditDialogOpen(true);
   };
 
-  const editMutation = useMutation({
-    mutationFn: async () => {
-      if (!editingPO || !user) throw new Error("Not ready");
-      if (!orgId) throw new Error("Organization not found");
-
-      const subtotal = editItems.reduce((s, i) => s + i.quantity * i.unit_price, 0);
-      const taxAmount = editItems.reduce((s, i) => s + i.quantity * i.unit_price * (i.tax_rate / 100), 0);
-
-      const { error } = await supabase.from("purchase_orders").update({
+  const handleEdit = () => {
+    if (!editingPO) return;
+    const selectedVendor = vendors.find((v: any) => v.name === editForm.vendor_name);
+    editPO.mutate(
+      {
+        id: editingPO.id,
         vendor_name: editForm.vendor_name,
+        vendor_id: selectedVendor?.id,
         order_date: editForm.order_date,
-        expected_delivery: editForm.expected_delivery || null,
-        notes: editForm.notes || null,
-        subtotal,
-        tax_amount: taxAmount,
-        total_amount: subtotal + taxAmount,
-      } as any).eq("id", editingPO.id).eq("organization_id", orgId);
-      if (error) throw error;
-
-      // Delete and re-insert items
-      await supabase.from("purchase_order_items").delete().eq("purchase_order_id", editingPO.id);
-      const validItems = editItems.filter(i => i.description.trim());
-      if (validItems.length > 0) {
-        const { error: itemErr } = await (supabase.from("purchase_order_items") as any).insert(
-          validItems.map(i => ({
-            purchase_order_id: editingPO.id,
-            organization_id: orgId,
-            description: i.description,
-            quantity: i.quantity,
-            unit_price: i.unit_price,
-            tax_rate: i.tax_rate,
-            amount: i.quantity * i.unit_price * (1 + i.tax_rate / 100),
-          }))
-        );
-        if (itemErr) throw itemErr;
+        expected_delivery: editForm.expected_delivery || undefined,
+        notes: editForm.notes || undefined,
+        items: editItems.filter(i => i.description.trim()),
+      },
+      {
+        onSuccess: () => {
+          setEditDialogOpen(false);
+          setEditingPO(null);
+        },
       }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
-      toast.success("Purchase order updated");
-      setEditDialogOpen(false);
-      setEditingPO(null);
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
+    );
+  };
 
   const [viewingPO, setViewingPO] = useState<PurchaseOrder | null>(null);
   const [viewPOItems, setViewPOItems] = useState<any[]>([]);
@@ -404,8 +380,8 @@ export default function PurchaseOrders() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>
-                {editMutation.isPending ? "Saving..." : "Save Changes"}
+              <Button onClick={handleEdit} disabled={editPO.isPending}>
+                {editPO.isPending ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>
           </DialogContent>

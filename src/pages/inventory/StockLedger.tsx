@@ -2,7 +2,7 @@ import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
-import { useStockLedger, useItems, useWarehouses } from "@/hooks/useInventory";
+import { useStockLedger, useStockLedgerKpis, useItems, useWarehouses } from "@/hooks/useInventory";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,10 @@ export default function StockLedger() {
   const [whFilter, setWhFilter] = useState<string>("__all__");
   const { data: items } = useItems();
   const { data: warehouses } = useWarehouses();
-  const { data: entries, isLoading, isError, error } = useStockLedger(itemFilter === "__all__" ? undefined : itemFilter, whFilter === "__all__" ? undefined : whFilter);
+  const activeItem = itemFilter === "__all__" ? undefined : itemFilter;
+  const activeWh = whFilter === "__all__" ? undefined : whFilter;
+  const { data: entries, isLoading, isError, error } = useStockLedger(activeItem, activeWh);
+  const { data: kpis } = useStockLedgerKpis(activeItem, activeWh);
   const pagination = usePagination(entries || [], 15);
 
   const txnBadge = (type: string) => {
@@ -33,18 +36,18 @@ export default function StockLedger() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-primary/10"><BookOpen className="h-6 w-6 text-primary" /></div>
-            <div><p className="text-sm text-muted-foreground">Total Entries</p><p className="text-2xl font-bold text-foreground">{entries?.length || 0}</p></div>
+            <div><p className="text-sm text-muted-foreground">Total Entries</p><p className="text-2xl font-bold text-foreground">{kpis?.totalEntries ?? entries?.length ?? 0}</p></div>
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-emerald-500/10"><ArrowUpRight className="h-6 w-6 text-emerald-500" /></div>
             <div><p className="text-sm text-muted-foreground">Stock In</p><p className="text-2xl font-bold text-foreground">
-              {(entries || []).filter((e: any) => Number(e.quantity) > 0).reduce((s: number, e: any) => s + Number(e.quantity), 0)}
+              {kpis?.stockIn ?? (entries || []).filter((e: any) => Number(e.quantity) > 0).reduce((s: number, e: any) => s + Number(e.quantity), 0)}
             </p></div>
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-destructive/10"><ArrowDownRight className="h-6 w-6 text-destructive" /></div>
             <div><p className="text-sm text-muted-foreground">Stock Out</p><p className="text-2xl font-bold text-foreground">
-              {Math.abs((entries || []).filter((e: any) => Number(e.quantity) < 0).reduce((s: number, e: any) => s + Number(e.quantity), 0))}
+              {kpis?.stockOut ?? Math.abs((entries || []).filter((e: any) => Number(e.quantity) < 0).reduce((s: number, e: any) => s + Number(e.quantity), 0))}
             </p></div>
           </CardContent></Card>
         </div>
