@@ -645,53 +645,49 @@ export default function Bills() {
     },
   });
 
-  // GBC-86: Bulk pay selected bills via record_vendor_payment RPC + bill_payment_lines tracking.
+  // GBC-86: Bulk pay selected bills via atomic process_bulk_vendor_payment RPC.
+  // Creates ONE vendor_payments row + N bill_payment_lines in a single transaction.
+  // Requires all selected bills to share the same vendor_id.
   const runBulkPay = async () => {
     if (!orgId) return;
     if (!bulkPay.bank_account_id) { toast.error("Please select a bank account."); return; }
     const targets = bills.filter((b: any) => selectedIds.has(b.id) && (b.status === "received" || b.status === "overdue" || isOverdue(b)));
     if (targets.length === 0) { toast.error("No payable bills selected."); return; }
 
-    setBulkPaying(true);
-    let ok = 0; const errs: string[] = [];
-    for (const b of targets) {
-      try {
-        const amt = Number(b.total_amount);
-        const { data: pmtId, error } = await (supabase as any).rpc("record_vendor_payment", {
-          p_bill_id: b.id,
-          p_amount: amt,
-          p_payment_method: bulkPay.payment_method,
-          p_bank_account_id: bulkPay.bank_account_id,
-          p_reference: bulkPay.reference_number || null,
-          p_payment_date: bulkPay.payment_date,
-        });
-        if (error) throw error;
-        // Track allocation in bill_payment_lines (best-effort; trigger validates totals).
-        if (pmtId) {
-          await supabase.from("bill_payment_lines").insert({
-            organization_id: orgId,
-            vendor_payment_id: pmtId,
-            bill_id: b.id,
-            amount_applied: amt,
-          } as any);
-        }
-        ok++;
-      } catch (e: any) {
-        errs.push(`${b.bill_number}: ${e.message || "failed"}`);
-      }
+    const vendorIds = new Set(targets.map((b: any) => b.vendor_id));
+    if (vendorIds.size > 1) {
+      toast.error("All selected bills must be for the same vendor.");
+      return;
     }
-    setBulkPaying(false);
-    queryClient.invalidateQueries({ queryKey: ["bills"] });
-    queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
-    queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
-    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    if (ok > 0) toast.success(`Paid ${ok} bill${ok === 1 ? "" : "s"}${errs.length ? ` (${errs.length} failed)` : ""}`);
-    if (errs.length) toast.error(errs.slice(0, 3).join(" • "));
-    if (errs.length === 0) {
+    const vendorId = targets[0].vendor_id;
+    if (!vendorId) { toast.error("Selected bills are missing a vendor reference."); return; }
+
+    setBulkPaying(true);
+    try {
+      const { error } = await (supabase as any).rpc("process_bulk_vendor_payment", {
+        p_vendor_id: vendorId,
+        p_payment_date: bulkPay.payment_date,
+        p_payment_method: bulkPay.payment_method,
+        p_bank_account_id: bulkPay.bank_account_id,
+        p_reference_number: bulkPay.reference_number || null,
+        p_notes: null,
+        p_lines: targets.map((b: any) => ({ bill_id: b.id, amount_applied: Number(b.total_amount) })),
+      });
+      if (error) throw error;
+      toast.success(`Paid ${targets.length} bill${targets.length === 1 ? "" : "s"}`);
       setBulkPayOpen(false);
       setSelectedIds(new Set());
+    } catch (e: any) {
+      toast.error(e.message || "Bulk payment failed");
+    } finally {
+      setBulkPaying(false);
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     }
+  };
   };
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
