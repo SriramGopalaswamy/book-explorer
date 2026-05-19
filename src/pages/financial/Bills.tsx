@@ -688,7 +688,7 @@ export default function Bills() {
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     }
   };
-  };
+
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
