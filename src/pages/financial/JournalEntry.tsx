@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { TablePagination } from "@/components/ui/TablePagination";
 import { usePagination } from "@/hooks/usePagination";
-import { useGLAccounts, useJournalEntries, usePostJournal, useReverseJournal, useFiscalPeriods } from "@/hooks/useLedger";
+import { useGLAccounts, useJournalEntries, useJournalKpis, usePostJournal, useReverseJournal, useFiscalPeriods } from "@/hooks/useLedger";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { OnboardingBanner } from "@/components/dashboard/OnboardingBanner";
@@ -43,6 +43,7 @@ export default function JournalEntry() {
   const { data: hasAccess, isLoading: checkingRole } = useIsFinance();
   const { data: accounts = [] } = useGLAccounts();
   const { data: entries = [], isLoading } = useJournalEntries();
+  const { data: kpis } = useJournalKpis();
   const { data: periods = [] } = useFiscalPeriods();
   const postJournal = usePostJournal();
   const reverseJournal = useReverseJournal();
@@ -138,10 +139,10 @@ export default function JournalEntry() {
 
         {/* Summary cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-foreground">{entries.length}</div><p className="text-sm text-muted-foreground">Total Entries</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-emerald-600">{entries.filter(e => e.status === "posted").length}</div><p className="text-sm text-muted-foreground">Posted</p></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-amber-600">{entries.filter(e => e.status === "locked").length}</div><div className="flex items-center gap-1"><p className="text-sm text-muted-foreground">Locked</p><Tooltip><TooltipTrigger asChild><Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs">Entries are locked when their fiscal period is closed. Locked entries cannot be edited or reversed.</TooltipContent></Tooltip></div></CardContent></Card>
-          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-red-600">{entries.filter(e => e.status === "reversed").length}</div><p className="text-sm text-muted-foreground">Reversed</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-foreground">{kpis?.total ?? entries.length}</div><p className="text-sm text-muted-foreground">Total Entries</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-emerald-600">{kpis?.posted ?? entries.filter(e => e.status === "posted").length}</div><p className="text-sm text-muted-foreground">Posted</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-amber-600">{kpis?.locked ?? entries.filter(e => e.status === "locked").length}</div><div className="flex items-center gap-1"><p className="text-sm text-muted-foreground">Locked</p><Tooltip><TooltipTrigger asChild><Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" /></TooltipTrigger><TooltipContent className="max-w-xs">Entries are locked when their fiscal period is closed. Locked entries cannot be edited or reversed.</TooltipContent></Tooltip></div></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="text-2xl font-bold text-red-600">{kpis?.reversed ?? entries.filter(e => e.status === "reversed").length}</div><p className="text-sm text-muted-foreground">Reversed</p></CardContent></Card>
         </div>
 
         {/* Toolbar */}

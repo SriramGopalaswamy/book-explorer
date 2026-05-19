@@ -237,6 +237,40 @@ export function useDeleteWarehouse() {
 
 // ─── Stock Ledger ───
 
+// ─── Stock Ledger KPIs (server-side, not limited to the loaded window) ──────
+export interface StockLedgerKpis {
+  totalEntries: number;
+  stockIn: number;
+  stockOut: number;
+}
+
+export function useStockLedgerKpis(itemId?: string, warehouseId?: string) {
+  const { user } = useAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["stock-ledger-kpis", itemId, warehouseId, orgId],
+    enabled: !!user && !!orgId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<StockLedgerKpis> => {
+      if (!orgId) return { totalEntries: 0, stockIn: 0, stockOut: 0 };
+      const { data, error } = await supabase.rpc("get_stock_ledger_kpis", {
+        p_org_id: orgId,
+        p_item_id: itemId ?? null,
+        p_warehouse_id: warehouseId ?? null,
+      });
+      if (error) throw error;
+      const d = (data ?? {}) as Record<string, number>;
+      return {
+        totalEntries: Number(d.total_entries ?? 0),
+        stockIn: Number(d.stock_in ?? 0),
+        stockOut: Number(d.stock_out ?? 0),
+      };
+    },
+  });
+}
+
 export function useStockLedger(itemId?: string, warehouseId?: string) {
   const { user } = useAuth();
   const { data: orgData } = useUserOrganization();
