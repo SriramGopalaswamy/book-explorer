@@ -163,26 +163,12 @@ export function useUpdateGRStatus() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!user) throw new Error("Not authenticated");
-      const callerOrgId = await resolveCallerOrg(user.id);
-
-      const { data: current } = await supabase.from("goods_receipts").select("status").eq("id", id).eq("organization_id", callerOrgId).maybeSingle();
-      if (!current) throw new Error("Goods receipt not found in your organization.");
-      const currentStatus = (current as any)?.status;
-      const allowed = GR_TRANSITIONS[currentStatus];
-      if (!allowed || !allowed.includes(status)) {
-        throw new Error(`Cannot transition GR from "${currentStatus}" to "${status}"`);
-      }
-      const { error } = await supabase.from("goods_receipts").update({ status } as any).eq("id", id).eq("organization_id", callerOrgId);
-      if (error) throw error;
-
-      // ── Auto stock-in when GR is accepted ──
-      if (status === "accepted") {
-        try {
-          await postGoodsReceiptStock(id);
-        } catch (stockErr: any) {
-          toast.error(`Stock ledger sync failed for GR: ${stockErr?.message ?? stockErr}`);
-        }
-      }
+      // GBC-: atomic status flip + stock-in on accept.
+      const { error } = await (supabase as any).rpc("update_goods_receipt_status", {
+        p_gr_id: id,
+        p_new_status: status,
+      });
+      if (error) throw new Error(error.message);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["goods-receipts"] }); qc.invalidateQueries({ queryKey: ["stock-ledger"] }); toast.success("GR status updated"); },
     onError: (e: any) => toast.error(e.message),
