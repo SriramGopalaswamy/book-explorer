@@ -8230,6 +8230,7 @@ export type Database = {
           settings: Json | null
           slug: string | null
           status: string
+          tenant_timezone: string
           timezone: string
           updated_at: string
           weekend_policy: string
@@ -8249,6 +8250,7 @@ export type Database = {
           settings?: Json | null
           slug?: string | null
           status?: string
+          tenant_timezone?: string
           timezone?: string
           updated_at?: string
           weekend_policy?: string
@@ -8268,6 +8270,7 @@ export type Database = {
           settings?: Json | null
           slug?: string | null
           status?: string
+          tenant_timezone?: string
           timezone?: string
           updated_at?: string
           weekend_policy?: string
