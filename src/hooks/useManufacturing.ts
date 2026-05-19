@@ -99,46 +99,29 @@ export function useBOMCostRollup(bomId?: string) {
 
   return useQuery({
     queryKey: ["bom-cost-rollup", bomId, orgId],
-    enabled: !!bomId,
+    enabled: !!bomId && !!orgId,
+    staleTime: 30_000,
     queryFn: async (): Promise<BOMCostRollup | null> => {
-      if (!bomId) return null;
-
-      // Fetch BOM lines
-      const { data: lines, error: lErr } = await supabase
-        .from("bom_lines").select("*").eq("bom_id", bomId).order("sort_order");
-      if (lErr) throw lErr;
-      if (!lines || lines.length === 0) return { bomId, totalMaterialCost: 0, totalWithWastage: 0, lineDetails: [] };
-
-      // Fetch item prices for lines that reference items
-      const itemIds = (lines as any[]).map((l: any) => l.item_id).filter(Boolean);
-      let itemPrices: Record<string, number> = {};
-      if (itemIds.length > 0) {
-        const { data: items } = await supabase
-          .from("items").select("id, purchase_price, selling_price").in("id", itemIds);
-        for (const item of (items || []) as any[]) {
-          itemPrices[item.id] = Number(item.purchase_price || item.selling_price || 0);
-        }
-      }
-
-      let totalMaterialCost = 0;
-      let totalWithWastage = 0;
-      const lineDetails = (lines as any[]).map((l: any) => {
-        // Use item master price if available, otherwise use est_cost from BOM line
-        const unitCost = l.item_id ? (itemPrices[l.item_id] || Number(l.est_cost || 0)) : Number(l.est_cost || 0);
-        const baseCost = l.quantity * unitCost;
-        const effectiveCost = baseCost * (1 + (l.wastage_pct || 0) / 100);
-        totalMaterialCost += baseCost;
-        totalWithWastage += effectiveCost;
-        return {
-          material_name: l.material_name,
-          quantity: l.quantity,
-          unitCost,
-          wastage_pct: l.wastage_pct || 0,
-          effectiveCost: Math.round(effectiveCost * 100) / 100,
-        };
+      if (!bomId || !orgId) return null;
+      const { data, error } = await supabase.rpc("calculate_bom_cost", {
+        p_bom_id: bomId,
+        p_org_id: orgId,
       });
-
-      return { bomId, totalMaterialCost: Math.round(totalMaterialCost * 100) / 100, totalWithWastage: Math.round(totalWithWastage * 100) / 100, lineDetails };
+      if (error) throw error;
+      const d = (data ?? {}) as Record<string, unknown>;
+      const lineDetails = ((d.line_details as any[]) || []).map((l: any) => ({
+        material_name: String(l.material_name ?? ""),
+        quantity: Number(l.quantity ?? 0),
+        unitCost: Number(l.unit_cost ?? 0),
+        wastage_pct: Number(l.wastage_pct ?? 0),
+        effectiveCost: Number(l.effective_cost ?? 0),
+      }));
+      return {
+        bomId,
+        totalMaterialCost: Number(d.total_material_cost ?? 0),
+        totalWithWastage: Number(d.total_with_wastage ?? 0),
+        lineDetails,
+      };
     },
   });
 }

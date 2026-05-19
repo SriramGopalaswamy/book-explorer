@@ -31,7 +31,8 @@ export function useGLAccounts() {
         .select("*")
         .eq("organization_id", orgId!)
         .eq("is_active", true)
-        .order("code");
+        .order("code")
+        .limit(500);
       if (error) throw error;
       return (data || []) as GLAccount[];
     },
