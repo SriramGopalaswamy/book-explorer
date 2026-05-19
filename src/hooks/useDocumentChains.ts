@@ -37,59 +37,16 @@ export function useConvertQuoteToSO() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (quote: {
-      id: string; client_name: string; customer_id?: string | null;
-      amount: number; due_date: string; notes?: string | null;
-      quote_items?: { description: string; quantity: number; rate: number; amount: number; hsn_sac?: string }[];
-    }) => {
+    mutationFn: async (quote: { id: string }) => {
       if (!user) throw new Error("Not authenticated");
-      const callerOrgId = await resolveCallerOrg(user.id);
-
-      const soNum = `SO-${Date.now().toString(36).toUpperCase()}`;
-      const items = quote.quote_items || [];
-      const subtotal = items.reduce((s, i) => s + i.amount, 0) || quote.amount;
-
-      const { data: so, error: soErr } = await supabase
-        .from("sales_orders")
-        .insert({
-          so_number: soNum,
-          customer_name: quote.client_name,
-          customer_id: quote.customer_id || null,
-          order_date: new Date().toISOString().split("T")[0],
-          expected_delivery: quote.due_date,
-          notes: quote.notes || null,
-          subtotal,
-          tax_amount: 0,
-          total_amount: subtotal,
-          created_by: user.id,
-          organization_id: callerOrgId,
-          status: "draft",
-          quote_id: quote.id,
-        } as any)
-        .select()
-        .single();
-      if (soErr) throw soErr;
-
-      if (items.length > 0) {
-        const soItems = items.map((i) => ({
-          sales_order_id: (so as any).id,
-          description: i.description,
-          quantity: i.quantity,
-          unit_price: i.rate,
-          tax_rate: 0,
-          amount: i.amount,
-          item_id: null,
-        }));
-        const { error: itemErr } = await supabase.from("sales_order_items").insert(soItems as any);
-        if (itemErr) {
-          await supabase.from("sales_orders").delete().eq("id", (so as any).id);
-          throw itemErr;
-        }
-      }
-
-      // Mark quote as converted (scoped by user_id per quotes RLS)
-      await supabase.from("quotes").update({ status: "converted" } as any).eq("id", quote.id).eq("user_id", user.id);
-      return so;
+      // GBC-2.1: single atomic SECURITY DEFINER RPC — replaces the previous
+      // multi-call chain (insert SO → insert items → update quote) that could
+      // leave a half-converted quote if any step failed mid-flow.
+      const { data, error } = await supabase.rpc("convert_quote_to_sales_order" as any, {
+        p_quote_id: quote.id,
+      });
+      if (error) throw error;
+      return data as unknown as string; // sales_order id
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["quotes"] });
@@ -99,6 +56,7 @@ export function useConvertQuoteToSO() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
 
 // ─── PO → Goods Receipt ─────────────────────────────────────────
 export function useCreateGoodsReceipt() {
