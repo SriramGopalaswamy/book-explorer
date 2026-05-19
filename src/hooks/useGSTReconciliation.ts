@@ -9,7 +9,17 @@ const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
 // ── HSN code validation (4, 6, or 8 digits) ──
 const HSN_REGEX = /^\d{4}(\d{2})?(\d{2})?$/;
 
-export const isValidGSTIN = (gstin: string) => GSTIN_REGEX.test(gstin);
+// GBC-144: Only enforce the Indian GSTIN regex when the value looks like it
+// could be an Indian GSTIN (15 chars starting with two digits — Indian state
+// code). A non-Indian tax number (e.g. VAT/EIN) or a legacy GSTIN that doesn't
+// match the strict format is treated as valid rather than blocking ITC flow.
+export const isValidGSTIN = (gstin: string): boolean => {
+  if (!gstin) return false;
+  // If it looks like an Indian GSTIN attempt (15 chars, starts with 2 digits),
+  // enforce the full regex. Otherwise accept it as a foreign/legacy tax ID.
+  const looksIndian = gstin.length === 15 && /^\d{2}/.test(gstin);
+  return looksIndian ? GSTIN_REGEX.test(gstin) : true;
+};
 export const isValidHSN = (hsn: string) => HSN_REGEX.test(hsn);
 
 /**

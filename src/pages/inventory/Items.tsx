@@ -2,7 +2,7 @@ import { useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
-import { useItems, useCreateItem, useUpdateItem, useDeleteItem } from "@/hooks/useInventory";
+import { useItems, useInventoryKpis, useCreateItem, useUpdateItem, useDeleteItem } from "@/hooks/useInventory";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -33,6 +33,7 @@ const emptyForm = {
 
 export default function Items() {
   const { data: items, isLoading } = useItems();
+  const { data: kpis } = useInventoryKpis();
   const createItem = useCreateItem();
   const updateItem = useUpdateItem();
   const deleteItem = useDeleteItem();
@@ -66,9 +67,9 @@ export default function Items() {
   });
   const pagination = usePagination(filtered, 10);
 
-  const totalItems = items?.length || 0;
-  const lowStock = (items || []).filter((i: any) => Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0).length;
-  const totalValue = (items || []).filter((i: any) => i.is_active !== false).reduce((s: number, i: any) => s + (Number(i.current_stock || 0) * Number(i.purchase_price || 0)), 0);
+  const totalItems = kpis?.totalSkus ?? items?.length ?? 0;
+  const lowStock = kpis?.lowStock ?? (items || []).filter((i: any) => Number(i.current_stock) <= Number(i.reorder_level) && Number(i.reorder_level) > 0).length;
+  const totalValue = kpis?.stockValue ?? (items || []).filter((i: any) => i.is_active !== false).reduce((s: number, i: any) => s + (Number(i.current_stock || 0) * Number(i.purchase_price || 0)), 0);
 
   const handleCreate = () => {
     createItem.mutate({
@@ -124,7 +125,6 @@ export default function Items() {
       hsn_code: editForm.hsn_code || null,
       reorder_level: Number(editForm.reorder_level) || 0,
       opening_stock: Number(editForm.opening_stock) || 0,
-      current_stock: Number(editForm.current_stock) || 0,
       description: editForm.description || null,
       barcode: editForm.barcode || null,
     }, {
@@ -162,7 +162,7 @@ export default function Items() {
           </CardContent></Card>
           <Card><CardContent className="pt-6 flex items-center gap-4">
             <div className="p-3 rounded-xl bg-secondary/50"><ShoppingCart className="h-6 w-6 text-secondary-foreground" /></div>
-            <div><p className="text-sm text-muted-foreground">Active</p><p className="text-2xl font-bold text-foreground">{(items || []).filter((i: any) => i.is_active).length}</p></div>
+            <div><p className="text-sm text-muted-foreground">Active</p><p className="text-2xl font-bold text-foreground">{kpis?.totalSkus ?? (items || []).filter((i: any) => i.is_active).length}</p></div>
           </CardContent></Card>
         </div>
 
@@ -333,7 +333,7 @@ export default function Items() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div><Label>Reorder Level</Label><Input type="number" value={editForm.reorder_level} onChange={e => setEditForm(f => ({ ...f, reorder_level: e.target.value }))} /></div>
-              <div><Label>Current Stock</Label><Input type="number" value={editForm.current_stock} onChange={e => setEditForm(f => ({ ...f, current_stock: e.target.value }))} /></div>
+              <div><Label>Current Stock <span className="text-xs text-muted-foreground">(managed by stock ledger)</span></Label><Input type="number" value={editForm.current_stock} readOnly className="bg-muted cursor-not-allowed" /></div>
             </div>
             <div><Label>Description</Label><Input value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
             <Button onClick={handleEdit} disabled={!editForm.name || !editForm.sku || updateItem.isPending}>
