@@ -69,7 +69,6 @@ const ANTI_PATTERN = new RegExp(
 const EXPECTED_OFFENDERS: Record<string, string> = {
   "hooks/useDocumentChains.ts": "GBC-123 (delivery delivered), GBC-127 (partial ship)",
   "hooks/useWarehouse.ts": "GBC-113 (stock transfer received loop)",
-  "pages/financial/Bills.tsx": "GBC-96 (mark as paid — single-row dialog)",
 };
 
 
