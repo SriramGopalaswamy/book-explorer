@@ -332,26 +332,13 @@ export function useCreateCreditNoteFromReturn() {
   return useMutation({
     mutationFn: async (salesReturnId: string) => {
       if (!user) throw new Error("Not authenticated");
-      const { data: ret, error: rErr } = await supabase.from("sales_returns").select("*").eq("id", salesReturnId).single();
-      if (rErr) throw rErr;
-      if ((ret as any).status !== "approved") throw new Error("Sales return must be approved before creating a credit note.");
-      if ((ret as any).credit_note_id) throw new Error("A credit note already exists for this return.");
-
-      const cnNumber = `CN-${Date.now().toString(36).toUpperCase()}`;
-      const { data: cn, error: cnErr } = await supabase.from("credit_notes").insert({
-        credit_note_number: cnNumber,
-        client_name: (ret as any).customer_name,
-        customer_id: (ret as any).customer_id || null,
-        amount: (ret as any).total_amount,
-        reason: `Credit for sales return ${(ret as any).return_number}`,
-        status: "issued",
-        issue_date: new Date().toISOString().split("T")[0],
-        user_id: user.id,
-      } as any).select().single();
-      if (cnErr) throw cnErr;
-
-      await supabase.from("sales_returns").update({ credit_note_id: (cn as any).id } as any).eq("id", salesReturnId);
-      return cn;
+      // GBC-59: atomic RPC creates credit_note + links sales_return in one transaction.
+      const { data, error } = await supabase.rpc(
+        "generate_credit_note_from_sales_return" as any,
+        { p_return_id: salesReturnId } as any,
+      );
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["sales-returns"] });
@@ -368,26 +355,13 @@ export function useCreateVendorCreditFromReturn() {
   return useMutation({
     mutationFn: async (purchaseReturnId: string) => {
       if (!user) throw new Error("Not authenticated");
-      const { data: ret, error: rErr } = await supabase.from("purchase_returns").select("*").eq("id", purchaseReturnId).single();
-      if (rErr) throw rErr;
-      if ((ret as any).status !== "approved") throw new Error("Purchase return must be approved before creating a vendor credit.");
-      if ((ret as any).vendor_credit_id) throw new Error("A vendor credit already exists for this return.");
-
-      const vcNumber = `VC-${Date.now().toString(36).toUpperCase()}`;
-      const { data: vc, error: vcErr } = await supabase.from("vendor_credits").insert({
-        vendor_credit_number: vcNumber,
-        vendor_name: (ret as any).vendor_name,
-        vendor_id: (ret as any).vendor_id || null,
-        amount: (ret as any).total_amount,
-        reason: `Vendor credit for purchase return ${(ret as any).return_number}`,
-        status: "issued",
-        issue_date: new Date().toISOString().split("T")[0],
-        user_id: user.id,
-      } as any).select().single();
-      if (vcErr) throw vcErr;
-
-      await supabase.from("purchase_returns").update({ vendor_credit_id: (vc as any).id } as any).eq("id", purchaseReturnId);
-      return vc;
+      // GBC-61: atomic RPC creates vendor_credit + links purchase_return in one transaction.
+      const { data, error } = await supabase.rpc(
+        "generate_vendor_credit_from_purchase_return" as any,
+        { p_return_id: purchaseReturnId } as any,
+      );
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["purchase-returns"] });
@@ -395,5 +369,45 @@ export function useCreateVendorCreditFromReturn() {
       toast.success("Vendor credit issued");
     },
     onError: (e: any) => toast.error(e.message),
+  });
+}
+
+// GBC-86: bulk vendor payment — one vendor_payments row + N bill_payment_lines, atomic.
+export interface BulkVendorPaymentInput {
+  vendor_id: string;
+  payment_date: string;
+  payment_method?: string;
+  bank_account_id?: string | null;
+  reference_number?: string | null;
+  notes?: string | null;
+  lines: Array<{ bill_id: string; amount_applied: number }>;
+}
+
+export function useProcessBulkVendorPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: BulkVendorPaymentInput) => {
+      const { data, error } = await supabase.rpc(
+        "process_bulk_vendor_payment" as any,
+        {
+          p_vendor_id: input.vendor_id,
+          p_payment_date: input.payment_date,
+          p_payment_method: input.payment_method ?? "bank_transfer",
+          p_bank_account_id: input.bank_account_id ?? null,
+          p_reference_number: input.reference_number ?? null,
+          p_notes: input.notes ?? null,
+          p_lines: input.lines,
+        } as any,
+      );
+      if (error) throw error;
+      return data as string;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bills"] });
+      qc.invalidateQueries({ queryKey: ["vendor-payments"] });
+      qc.invalidateQueries({ queryKey: ["bank-transactions"] });
+      toast.success("Bulk vendor payment recorded");
+    },
+    onError: (e: any) => toast.error(e.message ?? "Bulk payment failed"),
   });
 }

@@ -586,16 +586,28 @@ export default function Bills() {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       if (!orgId) throw new Error("Organization not found");
-      // First verify the bill exists and we can read it
-      const { data: currentBill, error: readError } = await supabase
-        .from("bills")
-        .select("id, status, organization_id, bill_number, bill_date")
-        .eq("id", id)
-        .eq("organization_id", orgId)
-        .single();
 
-      if (readError) {
-        throw new Error(`Cannot access bill: ${readError.message}`);
+      // GBC-96: mark-as-paid must be atomic. Route through record_vendor_payment RPC
+      // which creates the vendor_payments row, flips the bill status, and writes the
+      // bank_transactions row in a single transaction. Status flips other than 'paid'
+      // remain a plain UPDATE since they have no side effects.
+      if (status === "paid") {
+        const { data: currentBill, error: readError } = await supabase
+          .from("bills")
+          .select("id, total_amount, organization_id, bill_number")
+          .eq("id", id)
+          .eq("organization_id", orgId)
+          .single();
+        if (readError) throw new Error(`Cannot access bill: ${readError.message}`);
+
+        const { error } = await (supabase as any).rpc("record_vendor_payment", {
+          p_bill_id: id,
+          p_amount: Number((currentBill as any).total_amount),
+          p_payment_method: "bank_transfer",
+          p_payment_date: new Date().toISOString().split("T")[0],
+        });
+        if (error) throw new Error(error.message || "Failed to mark bill as paid");
+        return [currentBill];
       }
 
       const { data, error } = await supabase
@@ -612,25 +624,6 @@ export default function Bills() {
       if (!data || data.length === 0) {
         throw new Error("Update failed — bill status did not change. This may be a permissions issue.");
       }
-
-      // Auto-create bank transaction when bill is marked as paid (debit/money out)
-      if (status === "paid" && data[0]) {
-        const bill = data[0] as any;
-        const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-          await createBankTransaction({
-            userId: authUser.id,
-            amount: Number(bill.total_amount),
-            type: "debit",
-            description: `Bill paid: ${bill.bill_number} — ${bill.vendor_name}`,
-            reference: bill.bill_number,
-            category: "Bill Payment",
-            date: new Date().toISOString().split("T")[0],
-          });
-        }
-      }
-
       return data;
     },
     onSuccess: (_, variables) => {
@@ -639,6 +632,7 @@ export default function Bills() {
       queryClient.invalidateQueries({ queryKey: ["financial-data"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
       toast.success(`Bill ${variables.status === "paid" ? "marked as paid" : variables.status === "received" ? "marked as received" : "status updated"} successfully`);
       if (["received", "paid"].includes(variables.status)) {
         supabase.functions.invoke("send-notification-email", {
@@ -651,54 +645,50 @@ export default function Bills() {
     },
   });
 
-  // GBC-86: Bulk pay selected bills via record_vendor_payment RPC + bill_payment_lines tracking.
+  // GBC-86: Bulk pay selected bills via atomic process_bulk_vendor_payment RPC.
+  // Creates ONE vendor_payments row + N bill_payment_lines in a single transaction.
+  // Requires all selected bills to share the same vendor_id.
   const runBulkPay = async () => {
     if (!orgId) return;
     if (!bulkPay.bank_account_id) { toast.error("Please select a bank account."); return; }
     const targets = bills.filter((b: any) => selectedIds.has(b.id) && (b.status === "received" || b.status === "overdue" || isOverdue(b)));
     if (targets.length === 0) { toast.error("No payable bills selected."); return; }
 
-    setBulkPaying(true);
-    let ok = 0; const errs: string[] = [];
-    for (const b of targets) {
-      try {
-        const amt = Number(b.total_amount);
-        const { data: pmtId, error } = await (supabase as any).rpc("record_vendor_payment", {
-          p_bill_id: b.id,
-          p_amount: amt,
-          p_payment_method: bulkPay.payment_method,
-          p_bank_account_id: bulkPay.bank_account_id,
-          p_reference: bulkPay.reference_number || null,
-          p_payment_date: bulkPay.payment_date,
-        });
-        if (error) throw error;
-        // Track allocation in bill_payment_lines (best-effort; trigger validates totals).
-        if (pmtId) {
-          await supabase.from("bill_payment_lines").insert({
-            organization_id: orgId,
-            vendor_payment_id: pmtId,
-            bill_id: b.id,
-            amount_applied: amt,
-          } as any);
-        }
-        ok++;
-      } catch (e: any) {
-        errs.push(`${b.bill_number}: ${e.message || "failed"}`);
-      }
+    const vendorIds = new Set(targets.map((b: any) => b.vendor_id));
+    if (vendorIds.size > 1) {
+      toast.error("All selected bills must be for the same vendor.");
+      return;
     }
-    setBulkPaying(false);
-    queryClient.invalidateQueries({ queryKey: ["bills"] });
-    queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
-    queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
-    queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
-    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-    if (ok > 0) toast.success(`Paid ${ok} bill${ok === 1 ? "" : "s"}${errs.length ? ` (${errs.length} failed)` : ""}`);
-    if (errs.length) toast.error(errs.slice(0, 3).join(" • "));
-    if (errs.length === 0) {
+    const vendorId = targets[0].vendor_id;
+    if (!vendorId) { toast.error("Selected bills are missing a vendor reference."); return; }
+
+    setBulkPaying(true);
+    try {
+      const { error } = await (supabase as any).rpc("process_bulk_vendor_payment", {
+        p_vendor_id: vendorId,
+        p_payment_date: bulkPay.payment_date,
+        p_payment_method: bulkPay.payment_method,
+        p_bank_account_id: bulkPay.bank_account_id,
+        p_reference_number: bulkPay.reference_number || null,
+        p_notes: null,
+        p_lines: targets.map((b: any) => ({ bill_id: b.id, amount_applied: Number(b.total_amount) })),
+      });
+      if (error) throw error;
+      toast.success(`Paid ${targets.length} bill${targets.length === 1 ? "" : "s"}`);
       setBulkPayOpen(false);
       setSelectedIds(new Set());
+    } catch (e: any) {
+      toast.error(e.message || "Bulk payment failed");
+    } finally {
+      setBulkPaying(false);
+      queryClient.invalidateQueries({ queryKey: ["bills"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     }
   };
+
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 

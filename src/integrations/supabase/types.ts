@@ -14785,6 +14785,14 @@ export type Database = {
       }
       fn_refresh_financial_records_mv: { Args: never; Returns: undefined }
       fresh_reonboard_tenant: { Args: { _org_id: string }; Returns: Json }
+      generate_credit_note_from_sales_return: {
+        Args: { p_return_id: string }
+        Returns: string
+      }
+      generate_vendor_credit_from_purchase_return: {
+        Args: { p_return_id: string }
+        Returns: string
+      }
       get_ap_aging: {
         Args: { p_as_of: string; p_org_id: string }
         Returns: {
@@ -15098,6 +15106,18 @@ export type Database = {
           p_memo: string
           p_org_id: string
           p_override_reason: string
+        }
+        Returns: string
+      }
+      process_bulk_vendor_payment: {
+        Args: {
+          p_bank_account_id: string
+          p_lines: Json
+          p_notes: string
+          p_payment_date: string
+          p_payment_method: string
+          p_reference_number: string
+          p_vendor_id: string
         }
         Returns: string
       }
