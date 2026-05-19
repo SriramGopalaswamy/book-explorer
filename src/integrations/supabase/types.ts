@@ -15309,6 +15309,10 @@ export type Database = {
         }
         Returns: string
       }
+      update_delivery_note_status: {
+        Args: { p_dn_id: string; p_new_status: string }
+        Returns: undefined
+      }
       update_invoice_with_lines: {
         Args: {
           p_expected_version?: number
@@ -15348,6 +15352,10 @@ export type Database = {
           p_so_id: string
         }
         Returns: string
+      }
+      update_stock_transfer_status: {
+        Args: { p_new_status: string; p_transfer_id: string }
+        Returns: undefined
       }
       user_in_path_org: { Args: { object_name: string }; Returns: boolean }
     }
