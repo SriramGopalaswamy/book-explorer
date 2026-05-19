@@ -14738,6 +14738,10 @@ export type Database = {
         Args: { p_due_date?: string; p_quote_id: string }
         Returns: string
       }
+      convert_quote_to_sales_order: {
+        Args: { p_quote_id: string }
+        Returns: string
+      }
       create_bill_with_lines: {
         Args: { p_header: Json; p_lines: Json }
         Returns: string
