@@ -350,41 +350,22 @@ export function useApproveLeaveRequest() {
     mutationFn: async (requestId: string) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Verify request is still pending & enforce self-approval guard
-      const { data: check } = await supabase
-        .from("leave_requests")
-        .select("status, user_id")
-        .eq("id", requestId)
-        .maybeSingle();
-      if (check?.status !== "pending") {
-        throw new Error("This leave request has already been reviewed");
-      }
-      // Maker-checker: manager cannot approve their own leave
-      if (check?.user_id === user.id) {
-        throw new Error("You cannot approve your own leave request.");
-      }
+      // GBC-104: route through SECURITY DEFINER RPC that:
+      //   1. Locks the leave_requests row (blocks duplicate approve races).
+      //   2. Locks the leave_balances row.
+      //   3. Re-checks (total_days - used_days) >= days. RAISES if short.
+      //   4. UPDATEs status — the existing trg_fn_leave_balance_on_status
+      //      trigger fires inside the same transaction and decrements
+      //      used_days atomically under both held locks.
+      // This prevents the concurrent-double-approve case that previously
+      // pushed used_days past total_days.
+      const { data, error } = await (supabase as any).rpc("approve_leave_request", {
+        p_request_id: requestId,
+      });
 
-      // Resolve caller org for tenant isolation
-      const { data: callerProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      if (!callerProfile?.organization_id) throw new Error("Organization not found");
+      if (error) throw new Error(error.message || "Failed to approve leave request");
+      if (!data) throw new Error("Approval returned no data");
 
-      const { data, error } = await supabase
-        .from("leave_requests")
-        .update({
-          status: "approved",
-          reviewed_by: user.id,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", requestId)
-        .eq("organization_id", callerProfile.organization_id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Balance decrement is handled by trg_leave_balance_on_status (SECURITY DEFINER)
-      // so it works regardless of the caller's role (managers were excluded from the
-      // leave_balances UPDATE RLS policy and silently failed here).
 
       // Create attendance_records with status='leave' for each day in the leave range
       try {

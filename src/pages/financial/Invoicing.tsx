@@ -85,6 +85,7 @@ import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useOnboardingCompliance } from "@/hooks/useOnboardingCompliance";
 import { WorkflowStatus } from "@/components/financial/WorkflowStatus";
 import { InvoiceMessageThread } from "@/components/financial/InvoiceMessageThread";
+import { INDIAN_STATES_ACTIVE, findStateByName } from "@/lib/indian-states";
 
 const formatCurrency = (amount: number) => {
   if (amount >= 100000) {
@@ -148,12 +149,22 @@ const emptyLineItem: LineItem = {
   sgst_rate: "0",
 };
 
+/**
+ * GBC-129: Place-of-supply comparison must be deterministic — typos in either
+ * side silently flip GST classification (intrastate CGST/SGST vs interstate
+ * IGST). Both sides are resolved to a canonical 2-letter ISO code via
+ * `findStateByName`; comparison is on codes, not free text.
+ *
+ * Falls back to false (intrastate) when either side is unresolvable — same
+ * pre-fix behaviour, preventing regressions on historical free-text rows
+ * that haven't been backfilled yet.
+ */
 function isInterstateSupply(placeOfSupply: string, orgState: string | null | undefined): boolean {
   if (!placeOfSupply || !orgState) return false;
-  // Strip trailing state codes like " (29)" before comparing to avoid prefix collisions
-  // (e.g. "Goa" vs "Goalpara", or "Karnataka (29)" vs "Karnataka")
-  const normalize = (s: string) => s.trim().toLowerCase().replace(/\s*\(.*\)$/, "");
-  return normalize(placeOfSupply) !== normalize(orgState);
+  const pos = findStateByName(placeOfSupply);
+  const org = findStateByName(orgState);
+  if (!pos || !org) return false;
+  return pos.code !== org.code;
 }
 
 function calculateLineItemTotals(items: LineItem[], interstate = false) {
@@ -707,7 +718,14 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label>Place of Supply</Label>
-                        <Input placeholder="e.g. Karnataka (29)" value={formMeta.placeOfSupply} onChange={e => setFormMeta(prev => ({ ...prev, placeOfSupply: e.target.value }))} />
+                        <Select value={formMeta.placeOfSupply} onValueChange={v => setFormMeta(prev => ({ ...prev, placeOfSupply: v }))}>
+                          <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                          <SelectContent>
+                            {INDIAN_STATES_ACTIVE.map(s => (
+                              <SelectItem key={s.code} value={s.name}>{s.name} ({s.gstStateCode})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label>Customer GSTIN</Label>
@@ -803,7 +821,14 @@ export default function Invoicing() {
                     <div className="grid sm:grid-cols-2 gap-4">
                       <div className="grid gap-2">
                         <Label>Place of Supply</Label>
-                        <Input placeholder="e.g. Karnataka (29)" value={editFormMeta.placeOfSupply} onChange={e => setEditFormMeta(prev => ({ ...prev, placeOfSupply: e.target.value }))} />
+                        <Select value={editFormMeta.placeOfSupply} onValueChange={v => setEditFormMeta(prev => ({ ...prev, placeOfSupply: v }))}>
+                          <SelectTrigger><SelectValue placeholder="Select state" /></SelectTrigger>
+                          <SelectContent>
+                            {INDIAN_STATES_ACTIVE.map(s => (
+                              <SelectItem key={s.code} value={s.name}>{s.name} ({s.gstStateCode})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2">
                         <Label>Customer GSTIN</Label>
