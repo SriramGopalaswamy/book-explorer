@@ -65,7 +65,7 @@
   "pages/financial/Assets.tsx": 10,
   "pages/financial/AutomationDashboard.tsx": 10,
   "pages/financial/Banking.tsx": 1,
-  "pages/financial/Bills.tsx": 14,
+  "pages/financial/Bills.tsx": 13,
   "pages/financial/Customers.tsx": 1,
   "pages/financial/EInvoices.tsx": 1,
   "pages/financial/EwayBills.tsx": 8,
