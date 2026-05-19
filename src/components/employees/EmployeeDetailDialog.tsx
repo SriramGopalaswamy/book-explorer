@@ -28,6 +28,9 @@ import {
 } from "@/hooks/useEmployeeDetails";
 import { CompensationTab } from "./CompensationTab";
 import { DocumentsTab } from "./DocumentsTab";
+import { validatePAN, validatePincode } from "@/lib/country-validation";
+import { toast } from "sonner";
+
 
 const statusStyles: Record<string, string> = {
   active: "bg-success/10 text-success border-success/30",
@@ -166,7 +169,13 @@ export function EmployeeDetailDialog({ employee, open, onOpenChange, managerName
 
   const handleSave = () => {
     if (!employee) return;
+    // Format validation (PAN, Pincode) — empty values allowed
+    const panErr = validatePAN(String((form as any).pan_number || ""));
+    if (panErr) { toast.error(panErr); return; }
+    const pincodeErr = validatePincode(String((form as any).pincode || ""));
+    if (pincodeErr) { toast.error(pincodeErr); return; }
     upsert.mutate(
+
       { ...form, profile_id: employee.id } as EmployeeDetailsInput,
       {
         onSuccess: () => {

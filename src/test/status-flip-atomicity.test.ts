@@ -67,11 +67,11 @@ const ANTI_PATTERN = new RegExp(
 
 /** Known offenders today. Each must migrate to a single RPC or DB trigger. */
 const EXPECTED_OFFENDERS: Record<string, string> = {
-  "hooks/useDocumentChains.ts": "GBC-92 (quote→SO), GBC-123 (delivery delivered), GBC-127 (partial ship)",
-  "hooks/useInvoices.ts": "NEW-3 (invoice paid sibling of GBC-96)",
+  "hooks/useDocumentChains.ts": "GBC-123 (delivery delivered), GBC-127 (partial ship)",
   "hooks/useWarehouse.ts": "GBC-113 (stock transfer received loop)",
   "pages/financial/Bills.tsx": "GBC-96 (mark as paid — single-row dialog)",
 };
+
 
 function* walk(dir: string): Generator<string> {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

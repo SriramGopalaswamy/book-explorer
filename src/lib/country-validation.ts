@@ -143,3 +143,49 @@ export function validateTaxNumber(taxNumber: string, country: string): string | 
   }
   return null;
 }
+
+// ============================================================================
+// India-specific format validators (PAN, GSTIN, Pincode)
+// Centralized so DB CHECK constraints, UI forms, and bulk-upload share one source.
+// ============================================================================
+
+/** Permanent Account Number: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F). */
+export const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]$/;
+
+/** GST Identification Number: 15 chars, state-code + PAN + entity-code + 'Z' + checksum. */
+export const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/;
+
+/** Indian Pincode: exactly 6 digits, first digit 1-9. */
+export const PINCODE_REGEX = /^[1-9]\d{5}$/;
+
+export function isValidPAN(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return PAN_REGEX.test(value.trim().toUpperCase());
+}
+
+export function isValidGSTIN(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return GSTIN_REGEX.test(value.trim().toUpperCase());
+}
+
+export function isValidPincode(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return PINCODE_REGEX.test(value.trim());
+}
+
+/** Returns error message or null. Empty input treated as optional (no error). */
+export function validatePAN(value: string): string | null {
+  if (!value.trim()) return null;
+  return isValidPAN(value) ? null : "Invalid PAN. Expected 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F).";
+}
+
+export function validateGSTIN(value: string): string | null {
+  if (!value.trim()) return null;
+  return isValidGSTIN(value) ? null : "Invalid GSTIN. Expected 15 characters (e.g. 29ABCDE1234F1Z5).";
+}
+
+export function validatePincode(value: string): string | null {
+  if (!value.trim()) return null;
+  return isValidPincode(value) ? null : "Invalid pincode. Expected 6 digits (first digit 1-9).";
+}
+

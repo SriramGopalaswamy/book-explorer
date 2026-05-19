@@ -22,7 +22,7 @@
   "hooks/useGoalCycleConfig.ts": 1,
   "hooks/useGoalPlans.ts": 6,
   "hooks/useInventory.ts": 9,
-  "hooks/useInvoices.ts": 9,
+  "hooks/useInvoices.ts": 10,
   "hooks/useJobQueue.ts": 2,
   "hooks/useLeaves.ts": 5,
   "hooks/useLedger.ts": 3,
