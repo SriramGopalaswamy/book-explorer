@@ -314,31 +314,41 @@ export function useUpdateInvoiceStatus() {
         }
       }
 
-      const { data, error } = await supabase
-        .from("invoices")
-        .update({ status })
-        .eq("id", id)
-        .eq("organization_id", callerOrgId)
-        .select()
-        .single();
-      if (error) throw error;
-
-      // Auto-create bank transaction when invoice is marked as paid (money in)
-      if (status === "paid" && data) {
-        const { createBankTransaction } = await import("@/lib/bank-transaction-sync");
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          await createBankTransaction({
-            userId: user.id,
-            amount: Number(data.amount),
-            type: "credit",
-            description: `Invoice payment: ${data.invoice_number} — ${data.client_name}`,
-            reference: data.invoice_number,
-            category: "Invoice Payment",
-            date: new Date().toISOString().split("T")[0],
-          });
-        }
+      // GBC-2.2: route "Mark as Paid" through the atomic record_payment_receipt RPC.
+      // The RPC handles status flip + payment_receipts insert + bank_transactions
+      // insert inside a single transaction (with overpayment guard). Other status
+      // transitions still go through a plain UPDATE.
+      let data: any = null;
+      if (status === "paid") {
+        const invoiceAmount = Number(current?.amount || 0);
+        const { error: rpcErr } = await (supabase as any).rpc("record_payment_receipt", {
+          p_invoice_id: id,
+          p_amount: invoiceAmount,
+          p_payment_method: "manual",
+          p_bank_account_id: null,
+          p_reference: null,
+          p_payment_date: new Date().toISOString().split("T")[0],
+        });
+        if (rpcErr) throw rpcErr;
+        const { data: refreshed } = await supabase
+          .from("invoices")
+          .select("*")
+          .eq("id", id)
+          .eq("organization_id", callerOrgId)
+          .single();
+        data = refreshed;
+      } else {
+        const { data: updated, error } = await supabase
+          .from("invoices")
+          .update({ status })
+          .eq("id", id)
+          .eq("organization_id", callerOrgId)
+          .select()
+          .single();
+        if (error) throw error;
+        data = updated;
       }
+
 
       // Auto-cancel running workflow_runs when invoice reaches a terminal state
       // (paid, acknowledged, dispute, cancelled) to prevent further reminder emails.
