@@ -14,7 +14,9 @@ describe("Indian format validators (PAN / GSTIN / Pincode)", () => {
     it("rejects malformed PAN", () => {
       expect(isValidPAN("ABCD1234F")).toBe(false);
       expect(isValidPAN("ABCDE12345")).toBe(false);
-      expect(isValidPAN("abcde1234f")).toBe(false);
+      // lowercase is auto-uppercased by isValidPAN; raw regex rejects it
+      expect(PAN_REGEX.test("abcde1234f")).toBe(false);
+
       expect(validatePAN("XYZ")).toMatch(/Invalid PAN/);
     });
     it("treats empty as optional", () => {
