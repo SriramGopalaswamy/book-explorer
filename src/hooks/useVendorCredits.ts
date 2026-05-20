@@ -102,7 +102,7 @@ export function useVendorCreditApplications(billId?: string) {
         .eq("organization_id", orgId!)
         .eq("bill_id", billId!);
       if (error) throw error;
-      return (data || []) as {
+      return ((data || []) as unknown) as {
         id: string;
         applied_amount: number;
         applied_at: string;

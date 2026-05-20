@@ -196,7 +196,7 @@ export function useEditPurchaseOrder() {
         item_id: i.item_id || null,
       }));
 
-      const { error } = await (supabase.rpc as (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>)(
+      const { error } = await (supabase.rpc as any)(
         "update_purchase_order_with_lines",
         { p_po_id: params.id, p_header: header, p_lines: lines },
       );

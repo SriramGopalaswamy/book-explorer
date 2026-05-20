@@ -103,7 +103,7 @@ export function useBOMCostRollup(bomId?: string) {
     staleTime: 30_000,
     queryFn: async (): Promise<BOMCostRollup | null> => {
       if (!bomId || !orgId) return null;
-      const { data, error } = await supabase.rpc("calculate_bom_cost", {
+      const { data, error } = await (supabase.rpc as any)("calculate_bom_cost", {
         p_bom_id: bomId,
         p_org_id: orgId,
       });

@@ -289,7 +289,7 @@ export function useStockLedgerKpis(itemId?: string, warehouseId?: string) {
     staleTime: 60_000,
     queryFn: async (): Promise<StockLedgerKpis> => {
       if (!orgId) return { totalEntries: 0, stockIn: 0, stockOut: 0 };
-      const { data, error } = await supabase.rpc("get_stock_ledger_kpis", {
+      const { data, error } = await (supabase.rpc as any)("get_stock_ledger_kpis", {
         p_org_id: orgId,
         p_item_id: itemId ?? null,
         p_warehouse_id: warehouseId ?? null,
