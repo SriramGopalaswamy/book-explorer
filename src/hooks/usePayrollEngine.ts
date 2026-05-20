@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { usePayrollFlags, type PayrollFlags } from "@/hooks/usePayrollFlags";
+import { useWritePayrollEvent } from "@/hooks/useWritePayrollEvent";
 import { captureError } from "@/lib/monitoring";
 import { toast } from "sonner";
 
@@ -111,6 +112,7 @@ export function useGeneratePayroll() {
   const { user } = useAuth();
   const { data: org } = useUserOrganization();
   const { data: flags } = usePayrollFlags();
+  const { writeEvent } = useWritePayrollEvent();
 
   return useMutation({
     mutationFn: async (payPeriod: string) => {
@@ -160,6 +162,13 @@ export function useGeneratePayroll() {
         .eq("id", claimRow.payroll_run_id)
         .single();
       if (runErr) throw runErr;
+
+      // Append-only audit event. Fire-and-forget: errors are logged, never thrown.
+      writeEvent({
+        eventType: "payroll_run_started",
+        payrollRunId: run.id,
+        afterState: { pay_period: payPeriod, status: run.status },
+      });
 
       // 3. Fetch active compensation structures effective during this pay period.
       //    A structure is included when its window overlaps the period month:

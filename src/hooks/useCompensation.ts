@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
+import { useWritePayrollEvent } from "@/hooks/useWritePayrollEvent";
 import { toast } from "sonner";
 
 export interface CompensationComponent {
@@ -75,6 +76,7 @@ export function useCreateCompensationRevision() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { data: org } = useUserOrganization();
+  const { writeEvent } = useWritePayrollEvent();
 
   return useMutation({
     mutationFn: async (input: CreateRevisionInput) => {
@@ -152,6 +154,18 @@ export function useCreateCompensationRevision() {
           throw cErr;
         }
       }
+
+      // Append-only audit event. Fire-and-forget: errors are logged, never thrown.
+      writeEvent({
+        eventType: "salary_created",
+        employeeId: input.profile_id,
+        afterState: {
+          compensation_structure_id: structure.id,
+          annual_ctc: input.annual_ctc,
+          effective_from: input.effective_from,
+        },
+        reason: input.revision_reason,
+      });
 
       return structure;
     },
