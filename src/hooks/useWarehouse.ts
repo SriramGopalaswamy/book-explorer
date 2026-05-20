@@ -205,17 +205,29 @@ export function usePickingLists() {
   });
 }
 
-export function useInventoryCounts() {
+export function useInventoryCounts(params?: { page?: number; pageSize?: number; search?: string; status?: string }) {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
+  const page = params?.page ?? 1;
+  const pageSize = params?.pageSize ?? 25;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
   return useQuery({
-    queryKey: ["inventory-counts", orgId],
-    queryFn: async () => {
-      if (!orgId) return [];
-      const { data, error } = await supabase.from("inventory_counts").select("*").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(500);
+    queryKey: ["inventory-counts", orgId, page, pageSize, params?.search, params?.status],
+    queryFn: async (): Promise<{ data: InventoryCount[]; total: number }> => {
+      if (!orgId) return { data: [], total: 0 };
+      let query = supabase
+        .from("inventory_counts")
+        .select("*", { count: "exact" })
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false })
+        .range(from, to);
+      if (params?.search) query = query.ilike("count_number", `%${params.search}%`);
+      if (params?.status && params.status !== "all") query = query.eq("status", params.status);
+      const { data, error, count } = await query;
       if (error) throw error;
-      return (data || []) as unknown as InventoryCount[];
+      return { data: (data || []) as unknown as InventoryCount[], total: count ?? 0 };
     },
     enabled: !!orgId,
   });
@@ -350,83 +362,13 @@ export function usePostInventoryCount() {
   return useMutation({
     mutationFn: async (countId: string) => {
       if (!user) throw new Error("Not authenticated");
-
       const { data: orgProfile } = await supabase.from("profiles").select("organization_id").eq("user_id", user.id).maybeSingle();
-      const callerOrgId = orgProfile?.organization_id;
-      if (!callerOrgId) throw new Error("Organization not found");
-
-      const { data: count, error: cErr } = await supabase.from("inventory_counts").select("status, warehouse_id").eq("id", countId).eq("organization_id", callerOrgId).single();
-      if (cErr) throw cErr;
-      if ((count as any).status !== "approved") throw new Error("Only approved counts can be posted");
-
-      const { data: lines, error: lErr } = await supabase.from("inventory_count_lines").select("*").eq("count_id", countId);
-      if (lErr) throw lErr;
-
-      // Post stock adjustment ledger entries for variances
-      const variantLines = (lines as any[]).filter((l) => l.item_id && Number(l.variance || 0) !== 0);
-
-      // Fetch item rates for all variant items in one query
-      const variantItemIds = [...new Set(variantLines.map((l: any) => l.item_id))];
-      const itemRateMap = new Map<string, number>();
-      if (variantItemIds.length > 0) {
-        const { data: itemData } = await supabase.from("items").select("id, purchase_price, selling_price, current_stock").in("id", variantItemIds);
-        if (itemData) {
-          for (const item of itemData as any[]) {
-            const r = Number(item.purchase_price || item.selling_price || 0);
-            if (r > 0) itemRateMap.set(item.id, r);
-          }
-        }
-      }
-
-      // Build running balance map seeded from the latest ledger entry per item+warehouse
-      const warehouseId = (count as any).warehouse_id;
-      const balanceMap = new Map<string, number>();
-      for (const itemId of variantItemIds) {
-        const { data: lastEntry } = await supabase
-          .from("stock_ledger")
-          .select("balance_qty")
-          .eq("item_id", itemId)
-          .eq("warehouse_id", warehouseId)
-          .eq("organization_id", callerOrgId)
-          .order("posted_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        balanceMap.set(itemId as string, Number((lastEntry as any)?.balance_qty ?? 0));
-      }
-
-      for (const line of variantLines) {
-        const signedQty = Number(line.variance);
-        const rate = itemRateMap.get(line.item_id) ?? 0;
-        const value = rate > 0 ? Math.abs(signedQty) * rate : 0;
-        const prevBalance = balanceMap.get(line.item_id) ?? 0;
-        const newBalance = prevBalance + signedQty;
-        balanceMap.set(line.item_id, newBalance);
-
-        await supabase.from("stock_ledger").insert({
-          organization_id: callerOrgId,
-          item_id: line.item_id,
-          warehouse_id: warehouseId,
-          quantity: signedQty,
-          transaction_type: "adjustment",
-          reference_type: "inventory_adjustment",
-          reference_id: countId,
-          rate,
-          value,
-          balance_qty: newBalance,
-          notes: `Inventory count adjustment: ${line.item_name} (variance ${line.variance > 0 ? "+" : ""}${line.variance})`,
-          posted_at: new Date().toISOString(),
-          posted_by: user.id,
-        } as any);
-
-        // Keep items.current_stock in sync
-        const { data: itemRow } = await supabase.from("items").select("current_stock").eq("id", line.item_id).maybeSingle();
-        const currentStock = Number((itemRow as any)?.current_stock ?? 0);
-        await supabase.from("items").update({ current_stock: currentStock + signedQty } as any).eq("id", line.item_id);
-      }
-
-      // Mark count as posted
-      const { error: updErr } = await supabase.from("inventory_counts").update({ status: "posted" } as any).eq("id", countId).eq("organization_id", callerOrgId);
-      if (updErr) throw updErr;
+      if (!orgProfile?.organization_id) throw new Error("Organization not found");
+      const { error } = await supabase.rpc("post_inventory_variances" as never, {
+        p_count_id: countId,
+        p_org_id: orgProfile.organization_id,
+      } as never);
+      if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["inventory-counts"] });

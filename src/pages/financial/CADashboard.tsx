@@ -9,7 +9,8 @@ import { usePagination } from "@/hooks/usePagination";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useSubledgerReconciliation, useReconcileSubledgers, useControlAccountOverrides,
-  useJournalEntries, useFiscalPeriods, useCloseFiscalPeriod, useRunDepreciationBatch, useGLAccounts,
+  useFiscalPeriods, useCloseFiscalPeriod, useRunDepreciationBatch, useGLAccounts,
+  useCAJournalStats,
 } from "@/hooks/useLedger";
 import { useTrialBalance } from "@/hooks/useCanonicalViews";
 import { useIsFinance } from "@/hooks/useRoles";
@@ -32,7 +33,7 @@ export default function CADashboard() {
   const { data: hasAccess, isLoading: checkingRole } = useIsFinance();
   const { data: reconciliations = [], isLoading: loadingRecon } = useSubledgerReconciliation();
   const { data: overrides = [], isLoading: loadingOverrides } = useControlAccountOverrides();
-  const { data: entries = [] } = useJournalEntries();
+  const { data: journalStats } = useCAJournalStats();
   const { data: periods = [] } = useFiscalPeriods();
   const { data: trialBalance = [] } = useTrialBalance();
   const { data: accounts = [] } = useGLAccounts();
@@ -50,15 +51,11 @@ export default function CADashboard() {
   if (checkingRole) return <MainLayout title="CA Dashboard"><div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="h-6 w-6 animate-spin" /></div></MainLayout>;
   if (!hasAccess) return <AccessDenied message="Finance Access Required" description="You need finance or admin role." />;
 
-  // Compute insights
-  const manualEntries = entries.filter(e => e.source_type === "manual");
-  const manualRatio = entries.length > 0 ? (manualEntries.length / entries.length * 100).toFixed(1) : "0";
-  const backdatedEntries = entries.filter(e => {
-    const entryDate = new Date(e.entry_date);
-    const createdDate = new Date(e.created_at);
-    const diffDays = (createdDate.getTime() - entryDate.getTime()) / (1000 * 60 * 60 * 24);
-    return diffDays > 7;
-  });
+  // GBC-133: stats now computed server-side — no full table download
+  const manualCount = journalStats?.manual_count ?? 0;
+  const totalEntries = journalStats?.total ?? 0;
+  const manualRatio = journalStats?.manual_ratio?.toFixed(1) ?? "0";
+  const backdatedCount = journalStats?.backdated_count ?? 0;
 
   const tbBalanced = trialBalance.reduce((s, r) => s + r.debit, 0) === trialBalance.reduce((s, r) => s + r.credit, 0);
   const latestRecon = reconciliations.slice(0, 4);
@@ -101,7 +98,7 @@ export default function CADashboard() {
                 {Number(manualRatio) > 30 ? <AlertTriangle className="h-5 w-5 text-amber-600" /> : <Activity className="h-5 w-5 text-emerald-600" />}
                 <div>
                   <div className="text-sm font-semibold">{manualRatio}% Manual Journals</div>
-                  <p className="text-xs text-muted-foreground">{manualEntries.length} of {entries.length} entries</p>
+                  <p className="text-xs text-muted-foreground">{manualCount} of {totalEntries} entries</p>
                 </div>
               </div>
             </CardContent>
@@ -381,16 +378,16 @@ export default function CADashboard() {
           <TabsContent value="anomalies" className="space-y-4">
             <h3 className="text-lg font-semibold">Anomaly Detection</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Card className={backdatedEntries.length > 0 ? "border-amber-500/50" : ""}>
+              <Card className={backdatedCount > 0 ? "border-amber-500/50" : ""}>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    {backdatedEntries.length > 0 ? <AlertTriangle className="h-4 w-4 text-amber-600" /> : <CheckCircle className="h-4 w-4 text-emerald-600" />}
+                    {backdatedCount > 0 ? <AlertTriangle className="h-4 w-4 text-amber-600" /> : <CheckCircle className="h-4 w-4 text-emerald-600" />}
                     Backdated Entries
                   </CardTitle>
                   <CardDescription className="text-xs">Entries posted &gt;7 days after their date</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{backdatedEntries.length}</div>
+                  <div className="text-2xl font-bold">{backdatedCount}</div>
                 </CardContent>
               </Card>
 
