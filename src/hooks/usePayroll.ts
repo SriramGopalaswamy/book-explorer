@@ -83,7 +83,7 @@ export interface UpdatePayrollData extends Partial<CreatePayrollData> {
 }
 
 // ── Engine entry → PayrollRecord shape mapper ──────────────────────────────
-function engineEntryToPayrollRecord(e: any): PayrollRecord {
+export function engineEntryToPayrollRecord(e: any): PayrollRecord {
   const getComp = (breakdown: any[], ...names: string[]) => {
     for (const n of names) {
       const item = (breakdown ?? []).find((c: any) =>
@@ -221,6 +221,90 @@ export function usePayrollOrgRecordCount() {
     enabled: !!user && !!orgId,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+  });
+}
+
+// ─── Paginated Register ──────────────────────────────────────────────────────
+// Server-side pagination for the Register tab so the browser only fetches
+// one page at a time instead of downloading every entry for the period (GBC-141).
+export function usePayrollRegisterPage(params: {
+  payPeriod: string;
+  page: number;
+  pageSize: number;
+  search: string;
+  statusFilter: string;
+}) {
+  const { user } = useAuth();
+  const isDevMode = useIsDevModeWithoutAuth();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+  const { payPeriod, page, pageSize, search, statusFilter } = params;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  return useQuery({
+    queryKey: ["payroll-register-page", orgId, payPeriod, page, pageSize, search, statusFilter],
+    queryFn: async (): Promise<{ data: PayrollRecord[]; total: number }> => {
+      if (!user || !orgId) return { data: [], total: 0 };
+      if (isDevMode) {
+        let rows = mockPayrollRecords.filter((r) => r.pay_period === payPeriod && r.status !== "superseded");
+        if (search) {
+          const q = search.toLowerCase();
+          rows = rows.filter((r) =>
+            r.profiles?.full_name?.toLowerCase().includes(q) ||
+            String(r.profiles?.department ?? "").toLowerCase().includes(q)
+          );
+        }
+        if (statusFilter !== "all") rows = rows.filter((r) => r.status === statusFilter);
+        return { data: rows.slice(from, to + 1), total: rows.length };
+      }
+
+      const { data: runRow } = await supabase
+        .from("payroll_runs")
+        .select("id, pay_period, status, notes")
+        .eq("organization_id", orgId)
+        .eq("pay_period", payPeriod)
+        .maybeSingle();
+      if (!runRow) return { data: [], total: 0 };
+
+      // Two-step name/dept search: resolve matching profile IDs first
+      let profileIds: string[] | null = null;
+      if (search) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("organization_id", orgId)
+          .or(`full_name.ilike.%${search}%,department.ilike.%${search}%`);
+        profileIds = profs?.map((p: any) => p.id) ?? [];
+        if (profileIds.length === 0) return { data: [], total: 0 };
+      }
+
+      let query = supabase
+        .from("payroll_entries")
+        .select(
+          "id, profile_id, organization_id, gross_earnings, total_deductions, net_pay, annual_ctc, lwp_days, lwp_deduction, working_days, paid_days, status, earnings_breakdown, deductions_breakdown, pf_employee, pf_employer, tds_amount, created_at, updated_at, profiles!profile_id(full_name, email, department, job_title, employee_id, join_date, location)",
+          { count: "exact" }
+        )
+        .eq("payroll_run_id", runRow.id)
+        .neq("status", "superseded")
+        .range(from, to);
+
+      if (statusFilter !== "all") query = query.eq("status", statusFilter);
+      if (profileIds) query = query.in("profile_id", profileIds);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return {
+        data: (data ?? []).map((e: any) =>
+          engineEntryToPayrollRecord({ ...e, payroll_runs: runRow })
+        ),
+        total: count ?? 0,
+      };
+    },
+    enabled: (!!user && !!orgId && !!payPeriod) || isDevMode,
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 }
 

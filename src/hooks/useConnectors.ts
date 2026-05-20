@@ -67,10 +67,12 @@ export function useIntegration(provider: string) {
 }
 
 export function useConnectProvider() {
+  const { data: org } = useUserOrganization();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ provider, shopDomain, metadata }: { provider: string; shopDomain?: string; metadata?: Record<string, string> }) => {
       if (!isValidProvider(provider)) throw new Error(`Unsupported provider: ${provider}`);
+      if (!org?.organizationId) throw new Error("Organization not found");
 
       const domain = shopDomain
         ? shopDomain.replace(/^https?:\/\//, "").replace(/\/$/, "").trim()
@@ -85,6 +87,7 @@ export function useConnectProvider() {
         .from("integrations")
         .upsert(
           {
+            organization_id: org.organizationId,
             provider,
             shop_domain: domain,
             status: "connected",
