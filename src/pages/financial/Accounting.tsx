@@ -272,7 +272,22 @@ function TransactionsTab() {
                       {record.description || "—"}
                     </TableCell>
                     <TableCell className={`text-right font-medium ${record.type === "revenue" ? "text-success" : "text-destructive"}`}>
-                      {record.type === "revenue" ? "+" : "-"}{formatAmount(record.amount)}
+                      {(() => {
+                        const isForeign = record.currency_code && record.currency_code !== "INR";
+                        const inrAmount = isForeign
+                          ? record.amount * (Number(record.exchange_rate) || 1)
+                          : record.amount;
+                        return (
+                          <span title={isForeign ? `${record.amount} ${record.currency_code} × ${record.exchange_rate}` : undefined}>
+                            {record.type === "revenue" ? "+" : "-"}{formatAmount(inrAmount)}
+                            {isForeign && (
+                              <span className="block text-[10px] font-normal text-muted-foreground">
+                                {record.amount} {record.currency_code}
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       <Button
