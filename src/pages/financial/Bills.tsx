@@ -43,6 +43,7 @@ import { useOpenFiscalPeriods, isDateInOpenPeriod, openPeriodBounds } from "@/ho
 import { useVendorCreditsForVendor, useApplyVendorCredit, useVendorCreditApplications } from "@/hooks/useVendorCredits";
 import { AccessDenied } from "@/components/auth/AccessDenied";
 import { toast } from "sonner";
+import { checkDuplicateBill, type DuplicateBillMatch } from "@/hooks/useBills";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -405,6 +406,10 @@ export default function Bills() {
   const [applyingCreditId, setApplyingCreditId] = useState<string | null>(null);
   const [applyCreditAmount, setApplyCreditAmount] = useState("");
 
+  // GBC-135: Soft duplicate-bill warning
+  const [duplicateWarning, setDuplicateWarning] = useState<DuplicateBillMatch | null>(null);
+  const forceSaveRef = useRef(false);
+
   // Upload / AI state
   const [uploading, setUploading] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -504,6 +509,20 @@ export default function Bills() {
         amount: i.amount,
       }));
 
+      // GBC-135: Soft duplicate check (only on create, not on edit)
+      if (!editingBillId && !forceSaveRef.current) {
+        const dup = await checkDuplicateBill(orgId, form.vendor_name.trim(), total, form.bill_date);
+        if (dup) {
+          throw Object.assign(
+            new Error(
+              `A bill already exists for ${dup.vendor_name} — ${dup.bill_number} (${dup.bill_date}). Click "Save Anyway" to submit anyway.`,
+            ),
+            { isDuplicate: true, duplicate: dup },
+          );
+        }
+      }
+      forceSaveRef.current = false;
+
       let billId: string;
 
       if (editingBillId) {
@@ -541,7 +560,14 @@ export default function Bills() {
       toast.success(editingBillId ? "Bill updated successfully" : "Bill saved successfully");
       closeDialog();
     },
-    onError: (e: any) => toast.error(e.message),
+    onError: (e: any) => {
+      if (e.isDuplicate) {
+        setDuplicateWarning(e.duplicate as DuplicateBillMatch);
+        toast.warning("Possible duplicate bill detected — review before saving.");
+      } else {
+        toast.error(e.message);
+      }
+    },
   });
 
   const deleteMutation = useMutation({
@@ -697,6 +723,8 @@ export default function Bills() {
     setAiConfidence(undefined);
     setAiWarnings([]);
     setTaxBreakdown([]);
+    setDuplicateWarning(null);
+    forceSaveRef.current = false;
   };
 
   const closeDialog = () => {
@@ -1392,23 +1420,51 @@ export default function Bills() {
             </div>
           </div>
 
+          {/* GBC-135: Duplicate bill warning banner */}
+          {duplicateWarning && (
+            <div className="mx-6 mb-2 rounded-lg border border-yellow-400/50 bg-yellow-500/10 p-3 text-sm text-yellow-800 dark:text-yellow-300 flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-yellow-600" />
+              <span>
+                A possible duplicate was found: <strong>{duplicateWarning.bill_number}</strong> for{" "}
+                <strong>{duplicateWarning.vendor_name}</strong> on {duplicateWarning.bill_date}. Save anyway?
+              </span>
+            </div>
+          )}
+
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={closeDialog}>Cancel</Button>
-            <Button
-              variant="secondary"
-              onClick={() => { setForm(f => ({ ...f, status: "draft" })); setTimeout(() => saveMutation.mutate(), 0); }}
-              disabled={saveMutation.isPending || uploading || extracting}
-              className="gap-2"
-            >
-              {saveMutation.isPending && form.status === "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><FileText className="h-4 w-4" /> Save as Draft</>}
-            </Button>
-            <Button
-              onClick={() => { setForm(f => ({ ...f, status: "received" })); setTimeout(() => saveMutation.mutate(), 0); }}
-              disabled={saveMutation.isPending || uploading || extracting}
-              className="gap-2"
-            >
-              {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : editingBillId ? "Update Bill" : "Save Bill"}
-            </Button>
+            {duplicateWarning ? (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  forceSaveRef.current = true;
+                  setDuplicateWarning(null);
+                  saveMutation.mutate();
+                }}
+                disabled={saveMutation.isPending}
+                className="gap-2"
+              >
+                {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><AlertTriangle className="h-4 w-4" /> Save Anyway</>}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={() => { setForm(f => ({ ...f, status: "draft" })); setTimeout(() => saveMutation.mutate(), 0); }}
+                  disabled={saveMutation.isPending || uploading || extracting}
+                  className="gap-2"
+                >
+                  {saveMutation.isPending && form.status === "draft" ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : <><FileText className="h-4 w-4" /> Save as Draft</>}
+                </Button>
+                <Button
+                  onClick={() => { setForm(f => ({ ...f, status: "received" })); setTimeout(() => saveMutation.mutate(), 0); }}
+                  disabled={saveMutation.isPending || uploading || extracting}
+                  className="gap-2"
+                >
+                  {saveMutation.isPending ? <><Loader2 className="h-4 w-4 animate-spin" /> Saving…</> : editingBillId ? "Update Bill" : "Save Bill"}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
