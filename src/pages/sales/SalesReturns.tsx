@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Plus, Trash2, MoreHorizontal, Eye, Search } from "lucide-react";
 import { useSalesReturns, useCreateSalesReturn, useUpdateSalesReturnStatus, useCreateCreditNoteFromReturn } from "@/hooks/useReturns";
+import { useSalesOrders, useSalesOrderItems } from "@/hooks/useSalesOrders";
 import { format, isAfter, isBefore } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -37,8 +38,8 @@ export default function SalesReturnsPage() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ customer_name: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
-  const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]);
+  const [form, setForm] = useState({ customer_name: "", customer_id: "", sales_order_id: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
+  const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "", item_id: "" }]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
@@ -57,6 +58,36 @@ export default function SalesReturnsPage() {
     },
   });
 
+  // Sales orders for SO-linkage selector (filter to customer after selection)
+  const { data: allSalesOrders = [] } = useSalesOrders();
+  const customerSOs = allSalesOrders.filter(
+    so => form.customer_id ? so.customer_id === form.customer_id : so.customer_name === form.customer_name,
+  ).filter(so => ["confirmed", "partially_shipped", "delivered", "approved"].includes(so.status));
+
+  // Fetch SO items when an SO is linked — used to pre-populate return lines
+  const { data: soItems = [] } = useSalesOrderItems(form.sales_order_id || undefined);
+
+  const selectCustomer = (customerId: string) => {
+    const c = (customers as { id: string; name: string }[]).find(x => x.id === customerId);
+    setForm(p => ({ ...p, customer_id: customerId, customer_name: c?.name ?? "", sales_order_id: "" }));
+    setItems([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "", item_id: "" }]);
+  };
+
+  const selectSO = (soId: string) => {
+    setForm(p => ({ ...p, sales_order_id: soId }));
+    // Pre-populate items from SO lines when a SO is linked
+    if (soId && soItems.length > 0) {
+      setItems(soItems.map(si => ({
+        description: si.description,
+        quantity: si.shipped_quantity > 0 ? si.shipped_quantity : si.quantity,
+        unit_price: si.unit_price,
+        tax_rate: si.tax_rate,
+        reason: "",
+        item_id: si.item_id ?? "",
+      })));
+    }
+  };
+
   const filtered = returns.filter(r => {
     const matchSearch = !search || r.return_number.toLowerCase().includes(search.toLowerCase()) || r.customer_name.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "all" || r.status === statusFilter;
@@ -66,14 +97,27 @@ export default function SalesReturnsPage() {
   });
   const pagination = usePagination(filtered, 10);
 
-  const addItem = () => setItems(p => [...p, { description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]);
+  const resetForm = () => {
+    setForm({ customer_name: "", customer_id: "", sales_order_id: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" });
+    setItems([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "", item_id: "" }]);
+  };
+
+  const addItem = () => setItems(p => [...p, { description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "", item_id: "" }]);
   const removeItem = (i: number) => setItems(p => p.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: string, value: any) => setItems(p => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
+  const updateItem = (i: number, field: string, value: string | number) => setItems(p => p.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
 
   const handleCreate = () => {
     if (!form.customer_name || items.length === 0) return;
-    createReturn.mutate({ ...form, items }, {
-      onSuccess: () => { setOpen(false); setForm({ customer_name: "", return_date: new Date().toISOString().split("T")[0], reason: "", notes: "" }); setItems([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0, reason: "" }]); },
+    createReturn.mutate({
+      customer_name: form.customer_name,
+      customer_id: form.customer_id || undefined,
+      sales_order_id: form.sales_order_id || undefined,
+      return_date: form.return_date,
+      reason: form.reason,
+      notes: form.notes,
+      items: items.map(it => ({ ...it, item_id: it.item_id || undefined })),
+    }, {
+      onSuccess: () => { setOpen(false); resetForm(); },
     });
   };
 
@@ -111,16 +155,29 @@ export default function SalesReturnsPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Customer Name</Label>
-                    <Select value={form.customer_name} onValueChange={(v) => setForm(p => ({ ...p, customer_name: v }))}>
+                    <Label>Customer *</Label>
+                    <Select value={form.customer_id} onValueChange={selectCustomer}>
                       <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                       <SelectContent>
-                        {customers.map((c: any) => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
+                        {(customers as { id: string; name: string }[]).map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div><Label>Return Date</Label><Input type="date" value={form.return_date} onChange={e => setForm(p => ({ ...p, return_date: e.target.value }))} /></div>
                 </div>
+                {customerSOs.length > 0 && (
+                  <div>
+                    <Label>Link to Sales Order (optional)</Label>
+                    <Select value={form.sales_order_id} onValueChange={selectSO}>
+                      <SelectTrigger><SelectValue placeholder="Select sales order to validate items" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">No linked order</SelectItem>
+                        {customerSOs.map(so => <SelectItem key={so.id} value={so.id}>{so.so_number} — {so.status}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {form.sales_order_id && <p className="text-xs text-muted-foreground mt-1">Return quantities will be validated against shipped quantities on save.</p>}
+                  </div>
+                )}
                 <div><Label>Reason</Label><Input value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} /></div>
                 <div>
                   <div className="flex items-center justify-between mb-2"><Label>Return Items</Label><Button type="button" variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
