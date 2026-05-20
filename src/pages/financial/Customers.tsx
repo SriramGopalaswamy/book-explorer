@@ -73,13 +73,9 @@ export default function Customers() {
       if (phoneErr) newErrors.phone = phoneErr;
     }
     if (form.tax_number.trim()) {
-      // Check 15-char alphanumeric rule (GSTIN is 15 characters)
-      if (!/^[A-Za-z0-9]{15}$/.test(form.tax_number.trim())) {
-        newErrors.tax_number = "Must be exactly 15 alphanumeric characters";
-      } else {
-        const taxErr = validateTaxNumber(form.tax_number, form.country);
-        if (taxErr) newErrors.tax_number = taxErr;
-      }
+      // GBC-144: use country-aware validation only (same as Vendors.tsx GBC-33 fix)
+      const taxErr = validateTaxNumber(form.tax_number, form.country);
+      if (taxErr) newErrors.tax_number = taxErr;
     }
     if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
       newErrors.email = "Invalid email format";
