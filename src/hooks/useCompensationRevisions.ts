@@ -209,7 +209,12 @@ export function useReviewRevisionRequest() {
   const { user } = useAuth();
 
   return useMutation({
-    mutationFn: async (data: { id: string; status: "approved" | "rejected"; reviewer_notes?: string }) => {
+    mutationFn: async (data: {
+      id: string;
+      status: "approved" | "rejected";
+      reviewer_notes?: string;
+      revised_ctc?: number;
+    }) => {
       if (!user) throw new Error("Not authenticated");
       if (!["approved", "rejected"].includes(data.status)) {
         throw new Error("Invalid review status");
@@ -224,9 +229,9 @@ export function useReviewRevisionRequest() {
       const callerOrgId = callerProfile?.organization_id;
       if (!callerOrgId) throw new Error("Organization context required");
 
-      // Verify request is still pending & org-scoped
+      // Verify request is still pending & org-scoped; fetch full row for approval path
       const { data: current } = await (supabase.from("compensation_revision_requests") as any)
-        .select("status, requested_by")
+        .select("status, requested_by, profile_id, effective_from, proposed_ctc, proposed_components")
         .eq("id", data.id)
         .eq("organization_id", callerOrgId)
         .maybeSingle();
@@ -240,16 +245,68 @@ export function useReviewRevisionRequest() {
         throw new Error("You cannot review your own compensation revision request.");
       }
 
+      const finalCtc = data.revised_ctc && data.revised_ctc > 0
+        ? data.revised_ctc
+        : Number(current.proposed_ctc);
+
       const { error } = await (supabase.from("compensation_revision_requests") as any)
         .update({
           status: data.status,
           reviewed_by: user.id,
           reviewed_at: new Date().toISOString(),
           reviewer_notes: data.reviewer_notes || null,
+          // Store final approved CTC so history shows what was actually applied
+          ...(data.status === "approved" ? { proposed_ctc: finalCtc } : {}),
         })
         .eq("id", data.id)
         .eq("organization_id", callerOrgId);
       if (error) throw error;
+
+      // GBC-101: on approval, create the new compensation_structures row
+      // so the employee's salary is updated immediately without manual steps.
+      if (data.status === "approved" && current.profile_id && current.effective_from) {
+        // Deactivate existing active structures for this employee
+        await supabase
+          .from("compensation_structures")
+          .update({ is_active: false, effective_to: current.effective_from })
+          .eq("profile_id", current.profile_id)
+          .eq("organization_id", callerOrgId)
+          .eq("is_active", true);
+
+        // Insert the new compensation structure at the approved CTC
+        const { data: newStructure, error: sErr } = await supabase
+          .from("compensation_structures")
+          .insert({
+            profile_id: current.profile_id,
+            organization_id: callerOrgId,
+            annual_ctc: finalCtc,
+            effective_from: current.effective_from,
+            revision_reason: data.reviewer_notes?.trim() || "Approved compensation revision",
+            created_by: user.id,
+            is_active: true,
+          })
+          .select("id")
+          .single();
+        if (sErr) throw sErr;
+
+        // Copy proposed_components into compensation_components (if any)
+        const components: any[] = Array.isArray(current.proposed_components)
+          ? current.proposed_components
+          : [];
+        if (components.length > 0 && newStructure?.id) {
+          await supabase.from("compensation_components").insert(
+            components.map((c: any, i: number) => ({
+              compensation_structure_id: newStructure.id,
+              component_name: c.component_name || c.name || "Component",
+              component_type: c.component_type || c.type || "earning",
+              annual_amount: Number(c.annual_amount || c.amount || 0),
+              percentage_of_basic: c.percentage_of_basic ?? null,
+              is_taxable: c.is_taxable ?? true,
+              display_order: c.display_order ?? i,
+            }))
+          );
+        }
+      }
 
       await supabase.from("audit_logs").insert({
         organization_id: callerOrgId,

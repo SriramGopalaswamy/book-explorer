@@ -373,7 +373,7 @@ export function useFinanceReviewDispute() {
           .select("payroll_record_id, profile_id, pay_period")
           .eq("id", disputeId)
           .single();
-        const disputeData = dispute as any;
+        const disputeData = dispute as { payroll_record_id: string; profile_id: string; pay_period: string } | null;
         if (disputeData?.payroll_record_id) {
           // Mark existing record as superseded — set BOTH fields so the
           // engine fallback query (is_superseded=false) correctly excludes it.
@@ -387,24 +387,23 @@ export function useFinanceReviewDispute() {
             .eq("id", disputeData.payroll_record_id)
             .eq("organization_id", callerProfile.organization_id);
 
-          // GBC-122: post a GL reversal for the superseded entry so the books
+          // GBC-139: post a GL reversal for the superseded entry so the books
           // unwind cleanly before HR/Finance posts the corrected entry.
-          // The corrected entry id is supplied later by the revision flow when
-          // it sets `revised_payroll_record_id`. We pass NULL here; the RPC
-          // tolerates a missing corrected entry and only reverses the original.
-          // No-op until migration `GBC-122_create_payslip_reversal_entry.sql`
-          // is applied — wrap in try/catch so dispute approval never blocks.
-          try {
-            await (supabase.rpc as any)("create_payslip_reversal_entry", {
+          // When the revised payslip is later generated and its entry id is
+          // known, callers re-invoke with p_corrected_entry_id filled in.
+          type PayslipReversalRpc = (
+            fn: "create_payslip_reversal_entry",
+            args: { p_original_entry_id: string; p_corrected_entry_id: string | null; p_dispute_id: string }
+          ) => Promise<{ data: null; error: unknown }>;
+          const { error: revErr } = await (supabase.rpc as unknown as PayslipReversalRpc)(
+            "create_payslip_reversal_entry",
+            {
               p_original_entry_id: disputeData.payroll_record_id,
               p_corrected_entry_id: null,
               p_dispute_id: disputeId,
-            });
-          } catch (rpcErr) {
-            // RPC not yet deployed (review-only) — silently ignore.
-            // eslint-disable-next-line no-console
-            console.debug("[payslip-dispute] reversal RPC unavailable", rpcErr);
-          }
+            }
+          );
+          if (revErr) throw revErr;
         }
       }
 

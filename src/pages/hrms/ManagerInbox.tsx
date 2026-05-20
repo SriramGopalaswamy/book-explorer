@@ -2406,6 +2406,7 @@ function PendingCompRevisions({ requests }: { requests: CompensationRevisionRequ
   const reviewMutation = useReviewRevisionRequest();
   const [notes, setNotes] = useState("");
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [revisedCtcStr, setRevisedCtcStr] = useState("");
 
   if (requests.length === 0) {
     return (
@@ -2438,21 +2439,38 @@ function PendingCompRevisions({ requests }: { requests: CompensationRevisionRequ
                     <p>Reason: {r.revision_reason} · Effective: {fmtDate(r.effective_from)} · By: {r.requester?.full_name} ({r.requested_by_role})</p>
                   </div>
                   {reviewingId === r.id && (
-                    <div className="mt-2">
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground shrink-0">Approve with CTC (₹/yr):</label>
+                        <input
+                          type="number"
+                          className="h-7 rounded border border-input bg-background px-2 text-xs w-32 focus:outline-none focus:ring-1 focus:ring-ring"
+                          placeholder={String(Number(r.proposed_ctc))}
+                          value={revisedCtcStr}
+                          onChange={(e) => setRevisedCtcStr(e.target.value)}
+                        />
+                        <span className="text-[10px] text-muted-foreground">Leave blank to use proposed amount</span>
+                      </div>
                       <Textarea placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className="text-sm" />
                     </div>
                   )}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {reviewingId !== r.id ? (
-                    <Button size="sm" variant="outline" onClick={() => { setReviewingId(r.id); setNotes(""); }}>
+                    <Button size="sm" variant="outline" onClick={() => { setReviewingId(r.id); setNotes(""); setRevisedCtcStr(""); }}>
                       <Eye className="h-3.5 w-3.5 mr-1" /> Review
                     </Button>
                   ) : (
                     <>
                       <Button size="sm" variant="outline" className="border-green-500/40 text-green-400 hover:bg-green-500/10"
                         disabled={reviewMutation.isPending}
-                        onClick={() => reviewMutation.mutate({ id: r.id, status: "approved", reviewer_notes: notes }, { onSuccess: () => setReviewingId(null) })}>
+                        onClick={() => {
+                          const revisedCtc = revisedCtcStr ? parseFloat(revisedCtcStr) : undefined;
+                          reviewMutation.mutate(
+                            { id: r.id, status: "approved", reviewer_notes: notes, ...(revisedCtc && revisedCtc > 0 ? { revised_ctc: revisedCtc } : {}) },
+                            { onSuccess: () => { setReviewingId(null); setRevisedCtcStr(""); } }
+                          );
+                        }}>
                         <Check className="h-3.5 w-3.5 mr-1" /> Approve
                       </Button>
                       <Button size="sm" variant="outline" className="border-red-500/40 text-red-400 hover:bg-red-500/10"

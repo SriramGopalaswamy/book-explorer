@@ -153,7 +153,7 @@ export default function PickingLists() {
 
   // GBC-68: Confirm Pick dialog
   const [confirmList, setConfirmList] = useState<PickingList | null>(null);
-  const [confirmRows, setConfirmRows] = useState<{ item_id: string | null; item_name: string; ordered_qty: number; picked_qty: number }[]>([]);
+  const [confirmRows, setConfirmRows] = useState<{ item_id: string | null; item_name: string; ordered_qty: number; picked_qty: number; bin_id: string | null }[]>([]);
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
 
   const openConfirmPick = async (list: PickingList) => {
@@ -164,6 +164,7 @@ export default function PickingLists() {
       item_name: it.item_name || "",
       ordered_qty: Number(it.required_quantity || 0),
       picked_qty: Number(it.required_quantity || 0),
+      bin_id: it.bin_id || null,
     }));
     setConfirmRows(rows);
     setConfirmList(list);
@@ -180,6 +181,7 @@ export default function PickingLists() {
           item_id: r.item_id,
           ordered_qty: r.ordered_qty,
           picked_qty: r.picked_qty,
+          bin_id: r.bin_id,
         })),
       });
       if (error) throw error;

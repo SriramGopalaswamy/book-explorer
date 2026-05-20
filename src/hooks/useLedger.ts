@@ -4,6 +4,47 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { toast } from "sonner";
 
+// ─── CA Journal Stats (GBC-133) ──────────────────────────────────────
+// Server-side aggregation; avoids downloading all journal_entries to browser.
+export interface CAJournalStats {
+  total: number;
+  manual_count: number;
+  manual_ratio: number;
+  backdated_count: number;
+}
+
+type GetCAJournalStatsRpc = (
+  fn: "get_ca_journal_stats",
+  args: { p_org_id: string },
+) => Promise<{ data: CAJournalStats | null; error: unknown }>;
+
+export function useCAJournalStats() {
+  const { user } = useAuth();
+  const { data: org } = useUserOrganization();
+  const orgId = org?.organizationId;
+
+  return useQuery({
+    queryKey: ["ca-journal-stats", orgId],
+    queryFn: async (): Promise<CAJournalStats> => {
+      if (!orgId) return { total: 0, manual_count: 0, manual_ratio: 0, backdated_count: 0 };
+      const { data, error } = await (supabase.rpc as unknown as GetCAJournalStatsRpc)(
+        "get_ca_journal_stats",
+        { p_org_id: orgId },
+      );
+      if (error) throw error;
+      const d = data ?? { total: 0, manual_count: 0, manual_ratio: 0, backdated_count: 0 };
+      return {
+        total: Number(d.total ?? 0),
+        manual_count: Number(d.manual_count ?? 0),
+        manual_ratio: Number(d.manual_ratio ?? 0),
+        backdated_count: Number(d.backdated_count ?? 0),
+      };
+    },
+    enabled: !!user && !!orgId,
+    staleTime: 60_000,
+  });
+}
+
 // ─── GL Accounts ─────────────────────────────────────────────────────
 export interface GLAccount {
   id: string;

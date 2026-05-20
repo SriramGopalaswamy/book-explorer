@@ -10,9 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { DataTable, Column } from "@/components/ui/data-table";
-import { ClipboardCheck, Clock, PlayCircle, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search, Send, ShieldCheck } from "lucide-react";
-import { usePagination } from "@/hooks/usePagination";
+import { ClipboardCheck, Clock, CheckCircle, Plus, ChevronDown, ChevronRight, Trash2, MoreHorizontal, Eye, Pencil, Loader2, Search, Send, ShieldCheck } from "lucide-react";
 import { TablePagination } from "@/components/ui/TablePagination";
 import {
   useInventoryCounts, useCountLines, useCreateInventoryCount, useUpdateCountLine, useApproveInventoryCount, usePostInventoryCount,
@@ -245,19 +243,18 @@ function CountFormDialog({ dialogOpen, setDialogOpen, warehouses, items, warehou
               <Label>Items to Count *</Label>
               <Button size="sm" variant="outline" onClick={addItemRow}><Plus className="h-3 w-3 mr-1" /> Add Item</Button>
             </div>
-            <p className="text-xs text-muted-foreground mb-2">Pick an existing inventory item or enter a custom name. Set the expected quantity you believe should be in stock.</p>
+            <p className="text-xs text-muted-foreground mb-2">Select an item from inventory. Expected quantity is auto-filled from current stock balance.</p>
             <div className="space-y-2">
               {countItems.map((row, i) => (
                 <div key={i} className="space-y-2 rounded-lg border p-3">
-                  <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-2 items-center">
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-center">
                     <Select value={row.item_id || ""} onValueChange={(v) => handleSelectItem(i, v)}>
-                      <SelectTrigger><SelectValue placeholder="Pick from inventory" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select inventory item *" /></SelectTrigger>
                       <SelectContent>
                         {items.map((it: any) => <SelectItem key={it.id} value={it.id}>{it.name || it.item_name}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input placeholder="e.g. Laptop, Chair" value={row.item_name} onChange={(e) => updateItemRow(i, "item_name", e.target.value)} />
-                    <Input type="number" placeholder="Expected qty" value={row.expected_qty} onChange={(e) => updateItemRow(i, "expected_qty", parseFloat(e.target.value) || 0)} className="w-28" min={0} />
+                    <Input type="number" placeholder="Expected qty" value={row.expected_qty} onChange={(e) => updateItemRow(i, "expected_qty", parseFloat(e.target.value) || 0)} className="w-28" min={0} title="Auto-filled from current stock. Adjust if needed." />
                     <Button size="icon" variant="ghost" onClick={() => removeItemRow(i)} disabled={countItems.length === 1}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
@@ -350,7 +347,17 @@ function ViewCountDialog({ count, open, onClose, warehouses }: { count: Inventor
 export default function InventoryCounts() {
   const { data: orgData } = useUserOrganization();
   const orgId = orgData?.organizationId;
-  const { data: counts = [], isLoading } = useInventoryCounts();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const { data: countResult, isLoading } = useInventoryCounts({ page, pageSize, search, status: statusFilter });
+  const counts = countResult?.data ?? [];
+  const totalCounts = countResult?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCounts / pageSize));
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, totalCounts);
+
   const { data: warehouses = [] } = useWarehouses();
   const { data: items = [] } = useItems();
   const createCount = useCreateInventoryCount();
@@ -358,20 +365,12 @@ export default function InventoryCounts() {
   const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [editingCount, setEditingCount] = useState<InventoryCount | null>(null);
   const [viewingCount, setViewingCount] = useState<InventoryCount | null>(null);
   const [warehouseId, setWarehouseId] = useState("");
   const [countDate, setCountDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
   const [approveCountId, setApproveCountId] = useState<string | null>(null);
-  const filteredCounts = counts.filter(c => {
-    const matchesSearch = c.count_number.toLowerCase().includes(search.toLowerCase()) || (c.notes || "").toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === "all" || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-  const pagination = usePagination(filteredCounts, 10);
 
   const approve = useApproveInventoryCount();
   const postCount = usePostInventoryCount();
@@ -395,7 +394,7 @@ export default function InventoryCounts() {
   const [countItems, setCountItems] = useState<CountItemRow[]>([{ item_name: "", expected_qty: 0 }]);
 
   const stats = {
-    total: counts.length,
+    total: totalCounts,
     draft: counts.filter((c) => c.status === "draft").length,
     approved: counts.filter((c) => c.status === "approved").length,
     posted: counts.filter((c) => c.status === "posted").length,
@@ -412,12 +411,18 @@ export default function InventoryCounts() {
   const handleSelectItem = (i: number, itemId: string) => {
     const item = items.find((it: any) => it.id === itemId);
     if (item) {
-      setCountItems((prev) => prev.map((row, idx) => idx === i ? { ...row, item_id: item.id, item_name: (item as any).name || (item as any).item_name || "" } : row));
+      setCountItems((prev) => prev.map((row, idx) => idx === i ? {
+        ...row,
+        item_id: item.id,
+        item_name: (item as any).name || (item as any).item_name || "",
+        expected_qty: Number((item as any).current_stock ?? 0),
+      } : row));
     }
   };
 
   const handleCreate = () => {
-    const validItems = countItems.filter((it) => it.item_name.trim());
+    const validItems = countItems.filter((it) => it.item_id && it.item_name.trim());
+    if (validItems.length === 0) { toast.error("Select at least one inventory item."); return; }
     createCount.mutate(
       { warehouse_id: warehouseId, count_date: countDate, notes: notes || undefined, items: validItems },
       {
@@ -429,26 +434,6 @@ export default function InventoryCounts() {
       }
     );
   };
-
-  const columns: Column<InventoryCount>[] = [
-    {
-      key: "count_number",
-      header: "Count #",
-      render: (r) => (
-        <button className="flex items-center gap-1 font-mono font-semibold text-foreground hover:text-primary" onClick={() => toggleExpand(r.id)}>
-          {expanded.has(r.id) ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          {r.count_number}
-        </button>
-      ),
-    },
-    { key: "count_date", header: "Date", render: (r) => format(new Date(r.count_date), "dd MMM yyyy") },
-    { key: "warehouse_id", header: "Warehouse", render: (r) => { const wh = warehouses.find((w: any) => w.id === r.warehouse_id); return <span>{(wh as any)?.name || r.warehouse_id}</span>; } },
-    {
-      key: "status", header: "Status",
-      render: (r) => <Badge className={statusColors[r.status] || ""}>{r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</Badge>,
-    },
-    { key: "notes", header: "Notes", render: (r) => <span className="text-muted-foreground truncate max-w-[180px] block">{r.notes || "—"}</span> },
-  ];
 
   return (
     <MainLayout title="Inventory Counts" subtitle="Physical inventory verification">
@@ -482,7 +467,7 @@ export default function InventoryCounts() {
         <div className="rounded-md border bg-card">
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading…</div>
-          ) : filteredCounts.length === 0 ? (
+          ) : counts.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">{search || statusFilter !== "all" ? "No matching counts." : "No inventory counts yet. Create your first count above."}</div>
           ) : (
             <div className="overflow-auto max-h-[60vh]">
@@ -498,7 +483,7 @@ export default function InventoryCounts() {
                     </tr>
                   </thead>
                   <tbody>
-                    {pagination.paginatedItems.map((count) => (
+                    {counts.map((count) => (
                       <React.Fragment key={count.id}>
                         <tr className="border-b last:border-b-0 hover:bg-muted/30">
                           <td className="px-4 py-3">
@@ -552,7 +537,7 @@ export default function InventoryCounts() {
             </div>
           )}
         </div>
-        <TablePagination page={pagination.page} totalPages={pagination.totalPages} totalItems={pagination.totalItems} from={pagination.from} to={pagination.to} pageSize={pagination.pageSize} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
+        <TablePagination page={page} totalPages={totalPages} totalItems={totalCounts} from={from} to={to} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(ps) => { setPageSize(ps); setPage(1); }} />
 
         {/* View Details Dialog */}
         {viewingCount && (

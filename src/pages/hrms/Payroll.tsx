@@ -45,7 +45,7 @@ import {
   type PayslipDispute,
 } from "@/hooks/usePayslipDisputes";
 import {
-  usePayrollRecords, usePayrollStats, useUpdatePayroll,
+  usePayrollRecords, usePayrollRegisterPage, usePayrollStats, useUpdatePayroll,
   useDeletePayroll, useBulkDeletePayroll, useProcessPayroll,
   usePayrollOrgRecordCount,
   type PayrollRecord, type CreatePayrollData,
@@ -547,6 +547,8 @@ export default function Payroll() {
   const [selectedPeriod, setSelectedPeriod] = useState(currentPeriod());
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [registerPage, setRegisterPage] = useState(1);
+  const [registerPageSize, setRegisterPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -569,7 +571,15 @@ export default function Payroll() {
   // Disputes only matter to HR/Finance reviewers — skip the queries for everyone else
   const { data: pendingHRDisputes = [] } = usePendingPayslipDisputes(isHRRole ? "hr" : null);
   const { data: pendingFinanceDisputes = [] } = usePendingPayslipDisputes(isFinanceRole ? "finance" : null);
-  const { data: records = [], isLoading, isError: recordsError, isPlaceholderData } = usePayrollRecords(selectedPeriod);
+  const { data: registerResult, isLoading, isError: recordsError, isPlaceholderData } = usePayrollRegisterPage({
+    payPeriod: selectedPeriod,
+    page: registerPage,
+    pageSize: registerPageSize,
+    search: searchQuery,
+    statusFilter,
+  });
+  const records = registerResult?.data ?? [];
+  const registerTotal = registerResult?.total ?? 0;
   const { data: orgRecordCount = 0 } = usePayrollOrgRecordCount();
   // Heavy unfiltered scan — only fetch when the Review tab is open and the user is a reviewer
   const reviewTabActive = activeTab === "review" && (isHRRole || isFinanceRole);
@@ -584,6 +594,9 @@ export default function Payroll() {
   const bulkDeletePayroll = useBulkDeletePayroll();
   const processPayroll = useProcessPayroll();
   const queryClient = useQueryClient();
+
+  // Reset to page 1 whenever the period, search, or status filter changes
+  useEffect(() => { setRegisterPage(1); }, [selectedPeriod, searchQuery, statusFilter]);
 
   const [form, setForm] = useState({ profile_id: "", ...defaultForm });
 
@@ -631,19 +644,6 @@ export default function Payroll() {
     });
   };
 
-  const filtered = useMemo(() =>
-    records.filter((r) => {
-      if (r.status === "superseded") return false; // never shown in the register
-      const name = r.profiles?.full_name?.toLowerCase() || "";
-      const dept = r.profiles?.department?.toLowerCase() || "";
-      const q = searchQuery.toLowerCase();
-      const matchSearch = !q || name.includes(q) || dept.includes(q);
-      const matchStatus = statusFilter === "all" || r.status === statusFilter;
-      return matchSearch && matchStatus;
-    }), [records, searchQuery, statusFilter]);
-
-  const pagination = usePagination(filtered, 10);
-
   const filteredReview = useMemo(() =>
     allPayrollRecords
       .filter((r) => r.status !== "superseded")
@@ -663,7 +663,7 @@ export default function Payroll() {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
 
   const toggleAll = () =>
-    setSelectedIds((prev) => prev.length === filtered.length ? [] : filtered.map((r) => r.id));
+    setSelectedIds((prev) => prev.length === records.length ? [] : records.map((r) => r.id));
 
   const openEdit = (r: PayrollRecord) => {
     setEditTarget(r);
@@ -967,7 +967,7 @@ export default function Payroll() {
                 <CardContent>
                   <DataLoadingBar
                     isLoading={(isLoading || roleLoading) && !isPlaceholderData}
-                    loaded={records.length}
+                    loaded={registerTotal}
                     total={orgRecordCount || undefined}
                     label={`Loading payroll register for ${periodLabel(selectedPeriod)}`}
                     className="mb-4"
@@ -982,13 +982,13 @@ export default function Payroll() {
                       <p className="mt-3 font-medium text-destructive">Failed to load payroll records</p>
                       <p className="text-sm text-muted-foreground mt-1">A database schema error occurred. Please contact support or try refreshing.</p>
                     </div>
-                  ) : filtered.length === 0 ? (
+                  ) : records.length === 0 ? (
                     <PayrollRegisterEmptyState
                       searchQuery={searchQuery}
                       statusFilter={statusFilter}
                       period={selectedPeriod}
                       totalRecords={orgRecordCount}
-                      activeRecords={records.filter((r) => r.status !== "superseded").length}
+                      activeRecords={registerTotal}
                       currentRole={currentRole}
                     />
                   ) : (
@@ -1001,7 +1001,7 @@ export default function Payroll() {
                           <TableRow>
                             <TableHead className="w-10">
                               <Checkbox
-                                checked={selectedIds.length === filtered.length && filtered.length > 0}
+                                checked={selectedIds.length === records.length && records.length > 0}
                                 onCheckedChange={toggleAll}
                               />
                             </TableHead>
@@ -1017,7 +1017,7 @@ export default function Payroll() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {pagination.paginatedItems.map((r) => {
+                          {records.map((r) => {
                             // Mirror normalizeLegacyRecord: derive Basic as 62% of fixed gross
                             // so the register stays consistent with the payslip display.
                             const fixedGross   = Number(r.basic_salary) + Number(r.hra) + Number(r.other_allowances);
@@ -1109,20 +1109,20 @@ export default function Payroll() {
                         </TableBody>
                       </Table>
                       <TablePagination
-                        page={pagination.page}
-                        totalPages={pagination.totalPages}
-                        totalItems={pagination.totalItems}
-                        from={pagination.from}
-                        to={pagination.to}
-                        pageSize={pagination.pageSize}
-                        onPageChange={pagination.setPage}
-                        onPageSizeChange={pagination.setPageSize}
+                        page={registerPage}
+                        totalPages={Math.ceil(registerTotal / registerPageSize) || 1}
+                        totalItems={registerTotal}
+                        from={(registerPage - 1) * registerPageSize + 1}
+                        to={Math.min(registerPage * registerPageSize, registerTotal)}
+                        pageSize={registerPageSize}
+                        onPageChange={setRegisterPage}
+                        onPageSizeChange={(ps) => { setRegisterPageSize(ps); setRegisterPage(1); }}
                       />
                     </div>
                   )}
 
                   {/* Summary footer */}
-                  {filtered.length > 0 && (
+                  {registerTotal > 0 && (
                     <div className="mt-4 rounded-xl glass-morphism p-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                       <div>
                         <p className="text-muted-foreground">Total Basic</p>
