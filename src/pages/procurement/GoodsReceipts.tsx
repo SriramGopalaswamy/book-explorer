@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePurchaseOrders } from "@/hooks/usePurchaseOrders";
 import { useCreateGoodsReceipt, useUpdateGRStatus, useCreateBillFromGR } from "@/hooks/useDocumentChains";
+import { useBinLocations, useAcceptGoodsReceipt, BinLocation } from "@/hooks/useWarehouse";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PackageCheck, ClipboardList, AlertTriangle, CheckCircle, Plus, MoreHorizontal, FileText, Eye, Trash2, Search } from "lucide-react";
 import { format } from "date-fns";
@@ -47,8 +48,9 @@ type GRLineDraft = {
   item_id: string | null;
   description: string;
   unit_price: number;
-  remaining: number;      // ordered - already_received (for the "Max" UI hint)
-  receive_now: string;    // user-editable, kept as string for input control
+  remaining: number;        // ordered - already_received (for the "Max" UI hint)
+  receive_now: string;      // user-editable, kept as string for input control
+  bin_location_id: string;  // optional bin assignment for the received quantity
 };
 
 export default function GoodsReceipts() {
@@ -83,7 +85,9 @@ export default function GoodsReceipts() {
 
   const createGR = useCreateGoodsReceipt();
   const updateGRStatus = useUpdateGRStatus();
+  const acceptGR = useAcceptGoodsReceipt();
   const createBillFromGR = useCreateBillFromGR();
+  const { data: allBins = [] } = useBinLocations();
 
   const deleteGR = useMutation({
     mutationFn: async (id: string) => {
@@ -119,6 +123,7 @@ export default function GoodsReceipts() {
           unit_price: Number(i.unit_price || 0),
           remaining,
           receive_now: remaining > 0 ? String(remaining) : "0",
+          bin_location_id: "",
         };
       }).filter(d => d.remaining > 0);
       setPoLines(drafts);
@@ -155,6 +160,7 @@ export default function GoodsReceipts() {
           quantity_received: qty,
           unit_price: d.unit_price || undefined,
           amount: d.unit_price ? qty * d.unit_price : undefined,
+          bin_location_id: d.bin_location_id || null,
         };
       })
       .filter((i): i is NonNullable<typeof i> => i !== null);
@@ -211,14 +217,14 @@ export default function GoodsReceipts() {
                 <DropdownMenuItem onClick={() => updateGRStatus.mutate({ id: r.id, status: "inspecting" })}>
                   <PackageCheck className="h-4 w-4 mr-2" /> Start Inspection
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateGRStatus.mutate({ id: r.id, status: "accepted" })}>
+                <DropdownMenuItem onClick={() => acceptGR.mutate(r.id)}>
                   <CheckCircle className="h-4 w-4 mr-2" /> Accept
                 </DropdownMenuItem>
               </>
             )}
             {r.status === "inspecting" && (
               <>
-                <DropdownMenuItem onClick={() => updateGRStatus.mutate({ id: r.id, status: "accepted" })}>
+                <DropdownMenuItem onClick={() => acceptGR.mutate(r.id)}>
                   <CheckCircle className="h-4 w-4 mr-2" /> Accept
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => updateGRStatus.mutate({ id: r.id, status: "rejected" })}>
@@ -332,7 +338,8 @@ export default function GoodsReceipts() {
                           <TableRow>
                             <TableHead className="text-xs">Description</TableHead>
                             <TableHead className="text-xs text-right">Remaining</TableHead>
-                            <TableHead className="text-xs text-right w-32">Receive Now</TableHead>
+                            <TableHead className="text-xs text-right w-28">Receive Now</TableHead>
+                            <TableHead className="text-xs w-44">Bin Location</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -355,6 +362,20 @@ export default function GoodsReceipts() {
                                   }}
                                   className="text-right h-8"
                                 />
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={d.bin_location_id}
+                                  onValueChange={(v) => setPoLines(prev => prev.map((row, idx) => idx === i ? { ...row, bin_location_id: v } : row))}
+                                >
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="No bin" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="">No bin</SelectItem>
+                                    {(allBins as BinLocation[]).filter((b) => b.is_active).map((b) => (
+                                      <SelectItem key={b.id} value={b.id}>{b.bin_code}{b.zone ? ` (${b.zone})` : ""}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </TableCell>
                             </TableRow>
                           ))}

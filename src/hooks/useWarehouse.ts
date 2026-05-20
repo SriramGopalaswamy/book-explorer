@@ -452,6 +452,27 @@ export function useGeneratePickingList() {
   });
 }
 
+export function useAcceptGoodsReceipt() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (receiptId: string) => {
+      const { error } = await (supabase.rpc as unknown as (
+        fn: "accept_goods_receipt",
+        args: { p_receipt_id: string }
+      ) => Promise<{ data: null; error: unknown }>)("accept_goods_receipt", {
+        p_receipt_id: receiptId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["goods-receipts"] });
+      qc.invalidateQueries({ queryKey: ["bin-locations"] });
+      toast.success("Goods receipt accepted. Bin counts updated.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useUpdatePickingListStatus() {
   const qc = useQueryClient();
   return useMutation({

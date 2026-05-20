@@ -68,7 +68,7 @@ export function useCreateGoodsReceipt() {
       purchase_order_id: string;
       receipt_date: string;
       notes?: string;
-      items: { item_id?: string; description: string; quantity_received: number; unit_price?: number; amount?: number }[];
+      items: { item_id?: string; description: string; quantity_received: number; unit_price?: number; amount?: number; bin_location_id?: string | null }[];
     }) => {
       if (!user) throw new Error("Not authenticated");
       if (!params.purchase_order_id) throw new Error("Purchase Order is required");
@@ -105,6 +105,7 @@ export function useCreateGoodsReceipt() {
         quantity_received: i.quantity_received,
         unit_price: i.unit_price ?? null,
         amount: i.amount ?? (i.unit_price != null ? i.quantity_received * i.unit_price : null),
+        bin_location_id: i.bin_location_id ?? null,
       }));
       const { error: itemErr } = await supabase.from("goods_receipt_items").insert(grItems as any);
       if (itemErr) {
