@@ -14,6 +14,7 @@ import { DataTable, Column } from "@/components/ui/data-table";
 import { Plus, ShoppingBag, Clock, CheckCircle, Search, Trash2, FileText, PackageCheck, Pencil, Eye, RotateCcw, XCircle } from "lucide-react";
 import { useSalesOrders, useCreateSalesOrder, useUpdateSOStatus, useDeleteSalesOrder, useUpdateSalesOrder, SalesOrder } from "@/hooks/useSalesOrders";
 import { useSalesOrderItems } from "@/hooks/useSalesOrders";
+import { useItems } from "@/hooks/useInventory";
 import { useConvertSOToInvoice, useCreateDeliveryNote } from "@/hooks/useDocumentChains";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
@@ -51,7 +52,7 @@ export default function SalesOrders() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingSO, setEditingSO] = useState<SalesOrder | null>(null);
   const [editForm, setEditForm] = useState({ customer_name: "", order_date: "", expected_delivery: "", notes: "" });
-  const [editItems, setEditItems] = useState<{ description: string; quantity: number; unit_price: number; tax_rate: number }[]>([]);
+  const [editItems, setEditItems] = useState<{ item_id: string; description: string; quantity: number; unit_price: number; tax_rate: number }[]>([]);
   const { data: editSOItems = [] } = useSalesOrderItems(editingSO?.id);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [viewingSO, setViewingSO] = useState<SalesOrder | null>(null);
@@ -78,7 +79,8 @@ export default function SalesOrders() {
     },
   });
 
-  const [items, setItems] = useState([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
+  const { data: inventoryItems = [] } = useItems();
+  const [items, setItems] = useState([{ item_id: "", description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
 
   const filtered = orders.filter((o) => {
     const matchSearch = o.so_number.toLowerCase().includes(search.toLowerCase()) ||
@@ -94,21 +96,37 @@ export default function SalesOrders() {
     cancelled: orders.filter((o) => o.status === "cancelled").length,
   };
 
-  const addItem = () => setItems([...items, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
+  const addItem = () => setItems([...items, { item_id: "", description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
   const removeItem = (i: number) => setItems(items.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: string, value: any) => {
-    const updated = [...items];
-    (updated[i] as any)[field] = value;
-    setItems(updated);
+  const updateItem = (i: number, field: string, value: string | number) => {
+    setItems((prev) => prev.map((row, idx) => idx === i ? { ...row, [field]: value } : row));
+  };
+  const selectItem = (i: number, itemId: string) => {
+    const inv = inventoryItems.find((it) => it.id === itemId);
+    setItems((prev) => prev.map((row, idx) => idx === i ? {
+      ...row,
+      item_id: itemId,
+      description: inv?.name ?? inv?.item_name ?? row.description,
+      unit_price: Number(inv?.selling_price ?? row.unit_price),
+    } : row));
+  };
+  const selectEditItem = (i: number, itemId: string) => {
+    const inv = inventoryItems.find((it) => it.id === itemId);
+    setEditItems((prev) => prev.map((row, idx) => idx === i ? {
+      ...row,
+      item_id: itemId,
+      description: inv?.name ?? inv?.item_name ?? row.description,
+      unit_price: Number(inv?.selling_price ?? row.unit_price),
+    } : row));
   };
 
   const handleCreate = () => {
-    if (!form.customer_name || items.some((i) => !i.description)) return;
+    if (!form.customer_name || items.some((i) => !i.item_id)) return;
     createSO.mutate({ ...form, items }, {
       onSuccess: () => {
         setDialogOpen(false);
         setForm({ customer_name: "", order_date: format(new Date(), "yyyy-MM-dd"), expected_delivery: "", notes: "" });
-        setItems([{ description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
+        setItems([{ item_id: "", description: "", quantity: 1, unit_price: 0, tax_rate: 0 }]);
       },
     });
   };
@@ -123,7 +141,7 @@ export default function SalesOrders() {
   // Populate edit items when SO items load
   const editItemsReady = editingSO && editSOItems.length > 0 && editItems.length === 0;
   if (editItemsReady) {
-    setEditItems(editSOItems.map(i => ({ description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })));
+    setEditItems(editSOItems.map(i => ({ item_id: i.item_id ?? "", description: i.description, quantity: Number(i.quantity), unit_price: Number(i.unit_price), tax_rate: Number(i.tax_rate) })));
   }
 
   const handleEditSave = () => {
@@ -229,7 +247,15 @@ export default function SalesOrders() {
                   <div className="flex items-center justify-between"><Label className="text-base font-semibold">Line Items</Label><Button variant="outline" size="sm" onClick={addItem}><Plus className="h-3 w-3 mr-1" />Add</Button></div>
                   {items.map((item, i) => (
                     <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_32px] gap-2 items-end">
-                      <div><Label className="text-xs">Description</Label><Input value={item.description} onChange={(e) => updateItem(i, "description", e.target.value)} /></div>
+                      <div>
+                        <Label className="text-xs">Item *</Label>
+                        <Select value={item.item_id} onValueChange={(v) => selectItem(i, v)}>
+                          <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                          <SelectContent>
+                            {inventoryItems.map((it) => <SelectItem key={it.id} value={it.id}>{it.name ?? it.item_name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => updateItem(i, "quantity", Number(e.target.value))} /></div>
                       <div><Label className="text-xs">Unit Price</Label><Input type="number" value={item.unit_price} onChange={(e) => updateItem(i, "unit_price", Number(e.target.value))} /></div>
                       <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={(e) => updateItem(i, "tax_rate", Number(e.target.value))} /></div>
@@ -288,11 +314,19 @@ export default function SalesOrders() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-base font-semibold">Line Items</Label>
-                  <Button variant="outline" size="sm" onClick={() => setEditItems([...editItems, { description: "", quantity: 1, unit_price: 0, tax_rate: 0 }])}><Plus className="h-3 w-3 mr-1" />Add</Button>
+                  <Button variant="outline" size="sm" onClick={() => setEditItems([...editItems, { item_id: "", description: "", quantity: 1, unit_price: 0, tax_rate: 0 }])}><Plus className="h-3 w-3 mr-1" />Add</Button>
                 </div>
                 {editItems.map((item, i) => (
                   <div key={i} className="grid grid-cols-[1fr_80px_100px_80px_32px] gap-2 items-end">
-                    <div><Label className="text-xs">Description</Label><Input value={item.description} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], description: e.target.value }; setEditItems(u); }} /></div>
+                    <div>
+                      <Label className="text-xs">Item *</Label>
+                      <Select value={item.item_id} onValueChange={(v) => selectEditItem(i, v)}>
+                        <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                        <SelectContent>
+                          {inventoryItems.map((it) => <SelectItem key={it.id} value={it.id}>{it.name ?? it.item_name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div><Label className="text-xs">Qty</Label><Input type="number" value={item.quantity} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], quantity: Number(e.target.value) }; setEditItems(u); }} /></div>
                     <div><Label className="text-xs">Unit Price</Label><Input type="number" value={item.unit_price} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], unit_price: Number(e.target.value) }; setEditItems(u); }} /></div>
                     <div><Label className="text-xs">Tax %</Label><Input type="number" value={item.tax_rate} onChange={(e) => { const u = [...editItems]; u[i] = { ...u[i], tax_rate: Number(e.target.value) }; setEditItems(u); }} /></div>
