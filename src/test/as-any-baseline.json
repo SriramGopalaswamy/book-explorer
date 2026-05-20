@@ -40,7 +40,7 @@
   "hooks/usePayrollEngine.ts": 5,
   "hooks/usePayrollExports.ts": 2,
   "hooks/usePayrollRunRealtime.ts": 1,
-  "hooks/usePayslipDisputes.ts": 7,
+  "hooks/usePayslipDisputes.ts": 5,
   "hooks/usePlatformOps.ts": 2,
   "hooks/usePrivacyCompliance.ts": 15,
   "hooks/useProfileChangeRequests.ts": 3,
