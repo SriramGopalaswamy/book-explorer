@@ -48,11 +48,9 @@ const formatStoredTime = (timestamp: string | null): string => {
   const h12 = hours % 12 || 12;
   return `${String(h12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${ampm}`;
 };
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useMyTodayAttendance } from "@/hooks/useAttendance";
-import { toast } from "sonner";
+import { useMyTodayAttendance, useMyAttendanceHistory, useMyCorrectionRequests, useSubmitCorrectionRequest } from "@/hooks/useAttendance";
+import { supabase } from "@/integrations/supabase/client";
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 const STATUS_BADGE: Record<string, { label: string; class: string }> = {
@@ -69,97 +67,6 @@ const CORRECTION_STATUS_BADGE: Record<string, { label: string; icon: React.Eleme
   rejected: { label: "Rejected", icon: XCircle, class: "bg-red-100 text-red-700 border-red-200" },
 };
 
-
-// ─── Hooks ────────────────────────────────────────────────────────────
-function useMyAttendanceHistory() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: ["my-attendance-history", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const { data, error } = await supabase
-        .from("attendance_records")
-        .select("*")
-        .eq("user_id", user.id)
-        .gte("date", thirtyDaysAgo.toISOString().split("T")[0])
-        .order("date", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-}
-
-function useMyCorrectionRequests() {
-  const { user } = useAuth();
-  return useQuery({
-    queryKey: ["my-correction-requests", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("attendance_correction_requests")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!user,
-  });
-}
-
-function useSubmitCorrectionRequest() {
-  const queryClient = useQueryClient();
-  const { user } = useAuth();
-
-  return useMutation({
-    mutationFn: async (payload: {
-      date: string;
-      requested_check_in: string;
-      requested_check_out: string;
-      reason: string;
-    }) => {
-      if (!user) throw new Error("Not authenticated");
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      const { data, error } = await supabase
-        .from("attendance_correction_requests")
-        .insert({
-          user_id: user.id,
-          profile_id: profile?.id ?? null,
-          date: payload.date,
-          requested_check_in: payload.requested_check_in || null,
-          requested_check_out: payload.requested_check_out || null,
-          reason: payload.reason,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["my-correction-requests"] });
-      toast.success("Correction request submitted — your manager will review it.");
-      if (user) {
-        supabase.from("audit_logs").insert({ actor_id: user.id, actor_name: user.user_metadata?.full_name ?? user.email ?? "Unknown", action: "correction_submitted", entity_type: "attendance_correction", entity_id: data.id, metadata: {} } as any).then(({ error: e }) => { if (e) console.warn("Audit write failed:", e.message); });
-      }
-      supabase.functions.invoke("send-notification-email", {
-        body: {
-          type: "correction_request_created",
-          payload: { correction_request_id: data.id },
-        },
-      }).catch((err) => console.warn("Failed to send correction created notification:", err));
-    },
-    onError: (e: any) => toast.error("Failed to submit: " + e.message),
-  });
-}
 
 // ─── Component ────────────────────────────────────────────────────────
 export default function MyAttendance() {

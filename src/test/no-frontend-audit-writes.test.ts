@@ -30,11 +30,6 @@ const SRC_DIR = path.resolve(__dirname, "..");
 const EXPECTED_OFFENDERS: Array<{ file: string; ticket: string; note: string }> =
   [
     {
-      file: "pages/hrms/MyAttendance.tsx",
-      ticket: "GBC-114",
-      note: "attendance correction submit — convert to submit_attendance_correction RPC",
-    },
-    {
       file: "pages/hrms/ManagerInbox.tsx",
       ticket: "GBC-114",
       note: "attendance correction approve/reject — convert to review_attendance_correction RPC",

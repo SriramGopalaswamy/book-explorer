@@ -27,18 +27,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
-import { useUserOrganization } from "@/hooks/useUserOrganization";
-
-interface Vendor { id: string; name: string; }
-interface VendorCredit {
-  id: string; vendor_credit_number: string; vendor_name: string; vendor_id: string | null;
-  amount: number; reason: string | null; status: string; issue_date: string; created_at: string;
-}
+import { useVendorCredits, useCreateVendorCredit, useUpdateVendorCredit, useUpdateVendorCreditStatus, useDeleteVendorCredit, VendorCredit } from "@/hooks/useVendorCredits";
+import { useActiveVendors } from "@/hooks/useVendors";
 
 const formatCurrency = (n: number) => n >= 100000 ? `₹${(n / 100000).toFixed(2)}L` : `₹${n.toLocaleString("en-IN")}`;
 
@@ -100,9 +93,6 @@ const StatusStepper = ({ status }: { status: string }) => {
 export default function VendorCredits() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -115,108 +105,18 @@ export default function VendorCredits() {
   const [editForm, setEditForm] = useState({ vendor_name: "", amount: "", reason: "", issue_date: "", status: "" });
   const [deleteTarget, setDeleteTarget] = useState<VendorCredit | null>(null);
 
-  const { data: vendorCredits = [], isLoading } = useQuery({
-    queryKey: ["vendor-credits", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase.from("vendor_credits").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as VendorCredit[];
-    },
-    enabled: !!user && !!orgId,
-  });
-
-  const { data: vendors = [] } = useQuery({
-    queryKey: ["vendors", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase.from("vendors").select("id,name").eq("organization_id", orgId).eq("status", "active");
-      if (error) throw error;
-      return data as Vendor[];
-    },
-    enabled: !!user && !!orgId,
-  });
+  const { data: vendorCredits = [], isLoading } = useVendorCredits();
+  const { data: vendors = [] } = useActiveVendors();
 
   const resetForm = () => {
     setForm({ vendor_name: "", amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
     setSelectedVendorId("");
   };
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Not authenticated");
-      if (!orgId) throw new Error("Organization not found");
-      if (!form.vendor_name || !form.amount) throw new Error("Vendor name and amount are required.");
-      const { error } = await supabase.from("vendor_credits").insert({
-        user_id: user.id, organization_id: orgId, vendor_credit_number: `VC-${Date.now().toString().slice(-6)}`,
-        vendor_name: form.vendor_name, vendor_id: selectedVendorId || null,
-        amount: Number(form.amount), reason: form.reason || null, issue_date: form.issue_date,
-        status: form.status,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-credits"] });
-      toast({ title: "Vendor Credit Created" });
-      setIsDialogOpen(false);
-      resetForm();
-    },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      if (!editingCredit) throw new Error("No vendor credit selected");
-      if (!orgId) throw new Error("Organization not found");
-      if (!editForm.vendor_name || !editForm.amount) throw new Error("Vendor name and amount are required.");
-      const { error } = await supabase.from("vendor_credits").update({
-        vendor_name: editForm.vendor_name,
-        vendor_id: editVendorId || null,
-        amount: Number(editForm.amount),
-        reason: editForm.reason || null,
-        issue_date: editForm.issue_date,
-        status: editForm.status,
-      }).eq("id", editingCredit.id).eq("organization_id", orgId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["vendor-credits"] });
-      toast({ title: "Vendor Credit Updated" });
-      setIsEditDialogOpen(false);
-      setEditingCredit(null);
-    },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!orgId) throw new Error("Organization not found");
-      // GBC-91-sibling: Vendor credits are child entities — no FK dependents
-      // exist, but an "applied" credit has already been offset against a bill.
-      // Surface a friendly error rather than silently corrupting bill balances.
-      const [statusCheck] = await Promise.all([
-        supabase.from("vendor_credits").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "applied").limit(1),
-      ]);
-      if ((statusCheck.data?.length ?? 0) > 0) {
-        throw new Error("Cannot delete an applied vendor credit. Void it instead.");
-      }
-      const { data: deleted, error } = await supabase.from("vendor_credits").delete().eq("id", id).eq("organization_id", orgId).select("id");
-      if (error) throw error;
-      if (!deleted || deleted.length === 0) throw new Error("Vendor credit not found or could not be deleted.");
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendor-credits"] }); toast({ title: "Vendor Credit Deleted" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("vendor_credits").update({ status }).eq("id", id).eq("organization_id", orgId);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendor-credits"] }); toast({ title: "Status Updated" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const createVendorCredit = useCreateVendorCredit();
+  const updateVendorCredit = useUpdateVendorCredit();
+  const deleteVendorCredit = useDeleteVendorCredit();
+  const updateVendorCreditStatus = useUpdateVendorCreditStatus();
 
   const handleStatusChange = (vc: VendorCredit, newStatus: string) => {
     const allowed = ALLOWED_TRANSITIONS[vc.status] || [];
@@ -224,7 +124,7 @@ export default function VendorCredits() {
       toast({ title: "Invalid Transition", description: `Cannot change from "${vc.status}" to "${newStatus}".`, variant: "destructive" });
       return;
     }
-    updateStatusMutation.mutate({ id: vc.id, status: newStatus });
+    updateVendorCreditStatus.mutate({ id: vc.id, status: newStatus });
   };
 
   const handleVendorSelect = (id: string) => {
@@ -323,8 +223,18 @@ export default function VendorCredits() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Button
+                  onClick={() => {
+                    if (!user) return toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
+                    if (!form.vendor_name || !form.amount) return toast({ title: "Validation Error", description: "Vendor name and amount are required.", variant: "destructive" });
+                    createVendorCredit.mutate(
+                      { userId: user.id, vendorName: form.vendor_name, vendorId: selectedVendorId || null, amount: Number(form.amount), reason: form.reason || null, issueDate: form.issue_date, status: form.status },
+                      { onSuccess: () => { setIsDialogOpen(false); resetForm(); } },
+                    );
+                  }}
+                  disabled={createVendorCredit.isPending}
+                >
+                  {createVendorCredit.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Create
                 </Button>
               </DialogFooter>
@@ -402,7 +312,7 @@ export default function VendorCredits() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => { if (deleteTarget) { deleteMutation.mutate(deleteTarget.id); setDeleteTarget(null); } }}
+                onClick={() => { if (deleteTarget) { deleteVendorCredit.mutate(deleteTarget.id); setDeleteTarget(null); } }}
               >Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -438,8 +348,18 @@ export default function VendorCredits() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setEditingCredit(null); }}>Cancel</Button>
-              <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Button
+                onClick={() => {
+                  if (!editingCredit) return;
+                  if (!editForm.vendor_name || !editForm.amount) return toast({ title: "Validation Error", description: "Vendor name and amount are required.", variant: "destructive" });
+                  updateVendorCredit.mutate(
+                    { id: editingCredit.id, vendorName: editForm.vendor_name, vendorId: editVendorId || null, amount: Number(editForm.amount), reason: editForm.reason || null, issueDate: editForm.issue_date, status: editForm.status },
+                    { onSuccess: () => { setIsEditDialogOpen(false); setEditingCredit(null); } },
+                  );
+                }}
+                disabled={updateVendorCredit.isPending}
+              >
+                {updateVendorCredit.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save Changes
               </Button>
             </DialogFooter>

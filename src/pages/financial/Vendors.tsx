@@ -26,36 +26,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, MoreHorizontal, Pencil, Trash2, Search, Building2, Mail, Phone, Truck, ToggleRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
-import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import { useVendors, useCreateVendor, useUpdateVendor, useDeleteVendor, useToggleVendorStatus, Vendor, VendorForm } from "@/hooks/useVendors";
 import { getPhoneConfig, getTaxConfig, validatePhone, validateTaxNumber } from "@/lib/country-validation";
 
-interface Vendor {
-  id: string; name: string; email: string | null; phone: string | null; address: string | null;
-  city: string | null; country: string | null; tax_number: string | null;
-  contact_person: string | null; payment_terms: string | null; bank_account: string | null;
-  notes: string | null; status: string; created_at: string;
-}
-
-const emptyForm = { name: "", email: "", phone: "", address: "", city: "", country: "", tax_number: "", contact_person: "", payment_terms: "30 days", bank_account: "", notes: "" };
+const emptyForm: VendorForm = { name: "", email: "", phone: "", address: "", city: "", country: "", tax_number: "", contact_person: "", payment_terms: "30 days", bank_account: "", notes: "" };
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function Vendors() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
-  const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<Vendor | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<VendorForm>(emptyForm);
   const [errors, setErrors] = useState<{ email?: string; phone?: string; tax_number?: string }>({});
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
@@ -89,78 +75,11 @@ export default function Vendors() {
     setErrors(newErrors);
   }, [form.email, form.phone, form.tax_number, form.country]);
 
-  const { data: vendors = [], isLoading } = useQuery({
-    queryKey: ["vendors", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase.from("vendors").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Vendor[];
-    },
-    enabled: !!user && !!orgId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (values: typeof emptyForm) => {
-      if (!user) throw new Error("Not authenticated");
-      if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("vendors").insert({ ...values, user_id: user.id, organization_id: orgId });
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Added" }); setIsDialogOpen(false); setForm(emptyForm); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, values }: { id: string; values: typeof emptyForm }) => {
-      if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("vendors").update(values).eq("id", id).eq("organization_id", orgId);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); toast({ title: "Vendor Updated" }); setEditingVendor(null); setForm(emptyForm); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!orgId) throw new Error("Organization not found");
-      // GBC-91: Preflight dependency checks. Surface friendly errors instead of
-      // letting raw Postgres FK violations leak through.
-      const [billCheck, poCheck, vcCheck, payCheck] = await Promise.all([
-        supabase.from("bills").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
-        supabase.from("purchase_orders").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
-        supabase.from("vendor_credits").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
-        supabase.from("vendor_payments").select("id").eq("vendor_id", id).eq("organization_id", orgId).limit(1),
-      ]);
-      if (
-        (billCheck.data?.length ?? 0) > 0 ||
-        (poCheck.data?.length ?? 0) > 0 ||
-        (vcCheck.data?.length ?? 0) > 0 ||
-        (payCheck.data?.length ?? 0) > 0
-      ) {
-        throw new Error(
-          "Cannot delete this vendor — they have linked bills, purchase orders, vendor credits, or payments. Mark them as inactive instead.",
-        );
-      }
-      const { data: deleted, error } = await supabase.from("vendors").delete().eq("id", id).eq("organization_id", orgId).select("id");
-      if (error) throw error;
-      if (!deleted || deleted.length === 0) throw new Error("Vendor not found or could not be deleted.");
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Vendor Removed" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
-      if (!orgId) throw new Error("Organization not found");
-      const newStatus = currentStatus === "active" ? "inactive" : "active";
-      const { error } = await supabase.from("vendors").update({ status: newStatus }).eq("id", id).eq("organization_id", orgId);
-      if (error) throw error;
-      return newStatus;
-    },
-    onSuccess: (newStatus) => { queryClient.invalidateQueries({ queryKey: ["vendors"] }); toast({ title: `Vendor marked as ${newStatus}` }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const { data: vendors = [], isLoading } = useVendors();
+  const createVendor = useCreateVendor();
+  const updateVendor = useUpdateVendor();
+  const deleteVendor = useDeleteVendor();
+  const toggleVendorStatus = useToggleVendorStatus();
 
   const filtered = vendors.filter((v) => {
     const matchesSearch = v.name.toLowerCase().includes(search.toLowerCase()) || (v.email ?? "").toLowerCase().includes(search.toLowerCase());
@@ -186,8 +105,15 @@ export default function Vendors() {
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
 
-    if (editingVendor) updateMutation.mutate({ id: editingVendor.id, values: form });
-    else createMutation.mutate(form);
+    if (editingVendor) {
+      updateVendor.mutate({ id: editingVendor.id, values: form }, {
+        onSuccess: () => { setEditingVendor(null); setForm(emptyForm); },
+      });
+    } else {
+      createVendor.mutate(form, {
+        onSuccess: () => { setIsDialogOpen(false); setForm(emptyForm); },
+      });
+    }
   };
 
   if (isCheckingRole) return <MainLayout title="Vendors"><div className="flex items-center justify-center py-24"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div></MainLayout>;
@@ -277,7 +203,7 @@ export default function Vendors() {
             <DialogContent className="max-w-lg">
               <DialogHeader><DialogTitle>Add Vendor</DialogTitle></DialogHeader>
               {VendorForm}
-              <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSubmit} disabled={createMutation.isPending}>Add Vendor</Button></DialogFooter>
+              <DialogFooter><Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button><Button onClick={handleSubmit} disabled={createVendor.isPending}>Add Vendor</Button></DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
@@ -286,7 +212,7 @@ export default function Vendors() {
           <DialogContent className="max-w-lg">
             <DialogHeader><DialogTitle>Edit Vendor</DialogTitle></DialogHeader>
             {VendorForm}
-            <DialogFooter><Button variant="outline" onClick={() => setEditingVendor(null)}>Cancel</Button><Button onClick={handleSubmit} disabled={updateMutation.isPending}>Save Changes</Button></DialogFooter>
+            <DialogFooter><Button variant="outline" onClick={() => setEditingVendor(null)}>Cancel</Button><Button onClick={handleSubmit} disabled={updateVendor.isPending}>Save Changes</Button></DialogFooter>
           </DialogContent>
         </Dialog>
 
@@ -316,7 +242,7 @@ export default function Vendors() {
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(v)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toggleStatusMutation.mutate({ id: v.id, currentStatus: v.status })}><ToggleRight className="h-4 w-4 mr-2" />{v.status === "active" ? "Mark Inactive" : "Mark Active"}</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleVendorStatus.mutate({ id: v.id, currentStatus: v.status })}><ToggleRight className="h-4 w-4 mr-2" />{v.status === "active" ? "Mark Inactive" : "Mark Active"}</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(v.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -341,7 +267,7 @@ export default function Vendors() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { deleteMutation.mutate(deleteTarget!); setDeleteTarget(null); }}>
+            <AlertDialogAction onClick={() => { deleteVendor.mutate(deleteTarget!); setDeleteTarget(null); }}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
