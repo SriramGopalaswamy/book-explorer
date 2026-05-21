@@ -599,3 +599,96 @@ export function useCreateAttendance() {
     },
   });
 }
+
+// ─── My Attendance History (last 30 days, by user_id) ─────────────────
+
+export function useMyAttendanceHistory() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["my-attendance-history", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { data, error } = await supabase
+        .from("attendance_records")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("date", thirtyDaysAgo.toISOString().split("T")[0])
+        .order("date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+}
+
+// ─── My Correction Requests ───────────────────────────────────────────
+
+export function useMyCorrectionRequests() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["my-correction-requests", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("attendance_correction_requests")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+}
+
+// ─── Submit Correction Request ────────────────────────────────────────
+
+export function useSubmitCorrectionRequest() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      date: string;
+      requested_check_in: string;
+      requested_check_out: string;
+      reason: string;
+    }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const { data, error } = await supabase
+        .from("attendance_correction_requests")
+        .insert({
+          user_id: user.id,
+          profile_id: profile?.id ?? null,
+          date: payload.date,
+          requested_check_in: payload.requested_check_in || null,
+          requested_check_out: payload.requested_check_out || null,
+          reason: payload.reason,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["my-correction-requests"] });
+      toast.success("Correction request submitted — your manager will review it.");
+      supabase.functions.invoke("send-notification-email", {
+        body: {
+          type: "correction_request_created",
+          payload: { correction_request_id: data.id },
+        },
+      }).catch((err) => console.warn("Failed to send correction created notification:", err));
+    },
+    onError: (e: any) => toast.error("Failed to submit: " + e.message),
+  });
+}

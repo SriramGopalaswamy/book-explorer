@@ -23,36 +23,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Users, MoreHorizontal, Pencil, Trash2, Search, Building2, Mail, Phone, ToggleRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useUserOrganization } from "@/hooks/useUserOrganization";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
+import {
+  useCustomers,
+  useCreateCustomer,
+  useUpdateCustomer,
+  useDeleteCustomer,
+  useToggleCustomerStatus,
+  Customer,
+  CustomerForm as CustomerFormType,
+} from "@/hooks/useCustomers";
 
-interface Customer {
-  id: string; name: string; email: string | null; phone: string | null;
-  address: string | null; city: string | null; country: string | null;
-  tax_number: string | null; contact_person: string | null; notes: string | null;
-  status: string; created_at: string;
-}
-
-const emptyForm = {
+const emptyForm: CustomerFormType = {
   name: "", email: "", phone: "", address: "", city: "", country: "",
   tax_number: "", contact_person: "", notes: "",
 };
 
 export default function Customers() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
-  const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<CustomerFormType>(emptyForm);
   const [errors, setErrors] = useState<{ phone?: string; tax_number?: string; email?: string }>({});
 
   // Auto-set country code when country changes
@@ -83,81 +77,11 @@ export default function Customers() {
     setErrors(newErrors);
   }, [form.phone, form.tax_number, form.country, form.email]);
 
-  const { data: customers = [], isLoading } = useQuery({
-    queryKey: ["customers", orgId],
-    queryFn: async () => {
-      if (!orgId) return [];
-      const { data, error } = await supabase.from("customers").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as Customer[];
-    },
-    enabled: !!orgId,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: async (values: typeof emptyForm) => {
-      if (!user) throw new Error("Not authenticated");
-      if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("customers").insert({ ...values, user_id: user.id, organization_id: orgId });
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Added" }); setIsDialogOpen(false); setForm(emptyForm); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, values }: { id: string; values: typeof emptyForm }) => {
-      if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("customers").update(values).eq("id", id).eq("organization_id", orgId);
-      if (error) throw error;
-
-      // Propagate updated GSTIN to all draft invoices for this customer
-      if (values.tax_number !== undefined) {
-        await supabase
-          .from("invoices")
-          .update({ customer_gstin: values.tax_number || null } as any)
-          .eq("customer_id", id)
-          .eq("organization_id", orgId)
-          .eq("status", "draft");
-      }
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["invoices"] }); queryClient.invalidateQueries({ queryKey: ["quotes"] }); queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); toast({ title: "Customer Updated" }); setEditingCustomer(null); setForm(emptyForm); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!orgId) throw new Error("Organization not found");
-      // Check for linked invoices, credit notes, or quotes before deleting
-      const [invoiceCheck, creditNoteCheck, quoteCheck] = await Promise.all([
-        supabase.from("invoices").select("id").eq("customer_id", id).eq("organization_id", orgId).limit(1),
-        supabase.from("credit_notes").select("id").eq("customer_id", id).eq("organization_id", orgId).limit(1),
-        supabase.from("quotes").select("id").eq("customer_id", id).eq("organization_id", orgId).limit(1),
-      ]);
-      if ((invoiceCheck.data?.length ?? 0) > 0 || (creditNoteCheck.data?.length ?? 0) > 0 || (quoteCheck.data?.length ?? 0) > 0) {
-        throw new Error("Cannot delete this customer because they have linked invoices, quotes, or credit notes. Mark them as inactive instead.");
-      }
-      // Delete AI profile if exists (no user-facing data — failure is non-critical)
-      await supabase.from("ai_customer_profiles").delete().eq("customer_id", id);
-      const { data: deleted, error } = await supabase.from("customers").delete().eq("id", id).eq("organization_id", orgId).select("id");
-      if (error) throw error;
-      if (!deleted || deleted.length === 0) throw new Error("Customer not found or could not be deleted.");
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["customers"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); toast({ title: "Customer Removed" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const toggleStatusMutation = useMutation({
-    mutationFn: async ({ id, currentStatus }: { id: string; currentStatus: string }) => {
-      if (!orgId) throw new Error("Organization not found");
-      const newStatus = currentStatus === "active" ? "inactive" : "active";
-      const { error } = await supabase.from("customers").update({ status: newStatus }).eq("id", id).eq("organization_id", orgId);
-      if (error) throw error;
-      return newStatus;
-    },
-    onSuccess: (newStatus) => { queryClient.invalidateQueries({ queryKey: ["customers"] }); toast({ title: `Customer marked as ${newStatus}` }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const { data: customers = [], isLoading } = useCustomers();
+  const createCustomer = useCreateCustomer();
+  const updateCustomer = useUpdateCustomer();
+  const deleteCustomer = useDeleteCustomer();
+  const toggleStatus = useToggleCustomerStatus();
 
   const filtered = customers.filter((c) => {
     const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || (c.email ?? "").toLowerCase().includes(search.toLowerCase()) || (c.city ?? "").toLowerCase().includes(search.toLowerCase());
@@ -193,8 +117,15 @@ export default function Customers() {
     const taxErr = validateTaxNumber(form.tax_number, form.country);
     if (taxErr) return toast({ title: "Invalid Tax Number", description: taxErr, variant: "destructive" });
 
-    if (editingCustomer) updateMutation.mutate({ id: editingCustomer.id, values: form });
-    else createMutation.mutate(form);
+    if (editingCustomer) {
+      updateCustomer.mutate({ id: editingCustomer.id, values: form }, {
+        onSuccess: () => { setEditingCustomer(null); setForm(emptyForm); },
+      });
+    } else {
+      createCustomer.mutate(form, {
+        onSuccess: () => { setIsDialogOpen(false); setForm(emptyForm); },
+      });
+    }
   };
 
   const active = customers.filter((c) => c.status === "active").length;
@@ -287,7 +218,7 @@ export default function Customers() {
               {CustomerForm}
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSubmit} disabled={createMutation.isPending}>Add Customer</Button>
+                <Button onClick={handleSubmit} disabled={createCustomer.isPending}>Add Customer</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -299,7 +230,7 @@ export default function Customers() {
             {CustomerForm}
             <DialogFooter>
               <Button variant="outline" onClick={() => setEditingCustomer(null)}>Cancel</Button>
-              <Button onClick={handleSubmit} disabled={updateMutation.isPending}>Save Changes</Button>
+              <Button onClick={handleSubmit} disabled={updateCustomer.isPending}>Save Changes</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -330,8 +261,8 @@ export default function Customers() {
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(c)}><Pencil className="h-4 w-4 mr-2" />Edit</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => toggleStatusMutation.mutate({ id: c.id, currentStatus: c.status })}><ToggleRight className="h-4 w-4 mr-2" />{c.status === "active" ? "Mark Inactive" : "Mark Active"}</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate(c.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleStatus.mutate({ id: c.id, currentStatus: c.status })}><ToggleRight className="h-4 w-4 mr-2" />{c.status === "active" ? "Mark Inactive" : "Mark Active"}</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => deleteCustomer.mutate(c.id)}><Trash2 className="h-4 w-4 mr-2" />Delete</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

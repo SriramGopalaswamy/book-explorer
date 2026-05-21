@@ -680,6 +680,162 @@ export function useCreateLeaveType() {
   });
 }
 
+// ─── Holidays CRUD ────────────────────────────────────────────────────
+
+export function useHolidaysByYear(year: number) {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["holidays", year, orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from("holidays")
+        .select("*")
+        .eq("organization_id", orgId)
+        .eq("year", year)
+        .order("date", { ascending: true });
+      if (error) throw error;
+      return data as Holiday[];
+    },
+    enabled: !!orgId,
+  });
+}
+
+export function useCreateHoliday() {
+  const queryClient = useQueryClient();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useMutation({
+    mutationFn: async (vals: { name: string; date: string }) => {
+      if (!orgId) throw new Error("No organization found");
+      const year = new Date(vals.date).getFullYear();
+      const { error } = await supabase
+        .from("holidays")
+        .insert({ name: vals.name, date: vals.date, year, organization_id: orgId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success("Holiday added");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useUpdateHoliday() {
+  const queryClient = useQueryClient();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useMutation({
+    mutationFn: async (vals: { id: string; name: string; date: string }) => {
+      if (!orgId) throw new Error("No organization found");
+      const year = new Date(vals.date).getFullYear();
+      const { error } = await supabase
+        .from("holidays")
+        .update({ name: vals.name, date: vals.date, year })
+        .eq("id", vals.id)
+        .eq("organization_id", orgId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success("Holiday updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useDeleteHoliday() {
+  const queryClient = useQueryClient();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!orgId) throw new Error("No organization found");
+      const { data: deleted, error } = await supabase
+        .from("holidays")
+        .delete()
+        .eq("id", id)
+        .eq("organization_id", orgId)
+        .select("id");
+      if (error) throw error;
+      if (!deleted || deleted.length === 0) throw new Error("Holiday not found or could not be deleted.");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success("Holiday deleted");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useCloneHolidaysFromPrevYear(selectedYear: number) {
+  const queryClient = useQueryClient();
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!orgId) throw new Error("No organization found");
+      const prevYear = selectedYear - 1;
+      const { data: prev, error: prevErr } = await supabase
+        .from("holidays")
+        .select("name, date")
+        .eq("organization_id", orgId)
+        .eq("year", prevYear)
+        .order("date");
+      if (prevErr) throw prevErr;
+      if (!prev || prev.length === 0) {
+        throw new Error(`No holidays found in ${prevYear} to clone.`);
+      }
+      const cloned = prev.map((h) => {
+        const d = new Date(h.date);
+        d.setFullYear(selectedYear);
+        return {
+          name: h.name,
+          date: d.toISOString().split("T")[0],
+          year: selectedYear,
+          organization_id: orgId,
+        };
+      });
+      const { error } = await supabase.from("holidays").insert(cloned);
+      if (error) throw error;
+      return cloned.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success(`Cloned ${count} holidays from ${selectedYear - 1}`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useStalePayrollRuns() {
+  const { data: orgData } = useUserOrganization();
+  const orgId = orgData?.organizationId;
+
+  return useQuery({
+    queryKey: ["payroll-runs-stale", orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from("payroll_runs")
+        .select("id, pay_period, status, working_days_stale")
+        .eq("organization_id", orgId)
+        .eq("working_days_stale", true)
+        .limit(50);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!orgId,
+  });
+}
+
 export function useUpdateLeaveType() {
   const queryClient = useQueryClient();
   const { user } = useAuth();

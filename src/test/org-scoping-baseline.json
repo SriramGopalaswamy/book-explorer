@@ -1,4 +1,5 @@
 {
+  "hooks/useAttendance.ts": 1,
   "hooks/useAuditIntelligence.ts": 6,
   "hooks/useBulkUpload.ts": 8,
   "hooks/useCanonicalViews.ts": 2,
@@ -22,7 +23,7 @@
   "hooks/useSuperAdmin.ts": 1,
   "pages/Profile.tsx": 3,
   "pages/hrms/ManagerInbox.tsx": 1,
-  "pages/hrms/MyAttendance.tsx": 1,
+
   "pages/hrms/MyPayslips.tsx": 1,
   "pages/hrms/Reimbursements.tsx": 1
 }

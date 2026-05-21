@@ -27,18 +27,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsFinance } from "@/hooks/useRoles";
 import { AccessDenied } from "@/components/auth/AccessDenied";
-import { useUserOrganization } from "@/hooks/useUserOrganization";
-
-interface Customer { id: string; name: string; }
-interface CreditNote {
-  id: string; credit_note_number: string; client_name: string; customer_id: string | null;
-  amount: number; reason: string | null; status: string; issue_date: string; created_at: string;
-}
+import { useCreditNotes, useCreditNoteCustomers, useCreateCreditNote, useUpdateCreditNote, useUpdateCreditNoteStatus, useDeleteCreditNote, CreditNote } from "@/hooks/useCreditNotes";
 
 const formatCurrency = (n: number) => n >= 100000 ? `₹${(n / 100000).toFixed(2)}L` : `₹${n.toLocaleString("en-IN")}`;
 
@@ -102,9 +94,6 @@ const StatusStepper = ({ status }: { status: string }) => {
 export default function CreditNotes() {
   const { data: hasFinanceAccess, isLoading: isCheckingRole } = useIsFinance();
   const { user } = useAuth();
-  const { data: orgData } = useUserOrganization();
-  const orgId = orgData?.organizationId;
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -118,72 +107,18 @@ export default function CreditNotes() {
   const [editForm, setEditForm] = useState({ amount: "", reason: "", issue_date: "", status: "" });
   const [deleteTarget, setDeleteTarget] = useState<CreditNote | null>(null);
 
-  const { data: creditNotes = [], isLoading } = useQuery({
-    queryKey: ["credit-notes", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase.from("credit_notes").select("*").eq("organization_id", orgId).order("created_at", { ascending: false });
-      if (error) throw error;
-      return data as CreditNote[];
-    },
-    enabled: !!user && !!orgId,
-  });
-
-  const { data: customers = [] } = useQuery({
-    queryKey: ["customers", user?.id, orgId],
-    queryFn: async () => {
-      if (!user || !orgId) return [];
-      const { data, error } = await supabase.from("customers").select("id,name").eq("organization_id", orgId).eq("status", "active");
-      if (error) throw error;
-      return data as Customer[];
-    },
-    enabled: !!user && !!orgId,
-  });
+  const { data: creditNotes = [], isLoading } = useCreditNotes();
+  const { data: customers = [] } = useCreditNoteCustomers();
 
   const resetForm = () => {
     setForm({ amount: "", reason: "", issue_date: new Date().toISOString().split("T")[0], status: "issued" });
     setSelectedCustomerId("");
   };
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("Not authenticated");
-      if (!orgId) throw new Error("Organization not found");
-      if (!selectedCustomerId) throw new Error("Please select a customer.");
-      if (!form.amount || Number(form.amount) <= 0) throw new Error("Please enter a valid amount.");
-      const customer = customers.find((c) => c.id === selectedCustomerId);
-      if (!customer) throw new Error("Selected customer not found.");
-      const { error } = await supabase.from("credit_notes").insert({
-        user_id: user.id,
-        organization_id: orgId,
-        credit_note_number: `CN-${Date.now().toString().slice(-6)}`,
-        client_name: customer.name,
-        customer_id: selectedCustomerId,
-        amount: Number(form.amount),
-        reason: form.reason || null,
-        issue_date: form.issue_date,
-        status: form.status,
-      });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
-      toast({ title: "Credit Note Created" });
-      setIsDialogOpen(false);
-      resetForm();
-    },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      if (!orgId) throw new Error("Organization not found");
-      const { error } = await supabase.from("credit_notes").update({ status }).eq("id", id).eq("organization_id", orgId);
-      if (error) throw error;
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Status Updated" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+  const createCreditNote = useCreateCreditNote();
+  const updateCreditNote = useUpdateCreditNote();
+  const updateCreditNoteStatus = useUpdateCreditNoteStatus();
+  const deleteCreditNote = useDeleteCreditNote();
 
   const handleStatusChange = (cn: CreditNote, newStatus: string) => {
     const allowed = ALLOWED_TRANSITIONS[cn.status] || [];
@@ -191,57 +126,8 @@ export default function CreditNotes() {
       toast({ title: "Invalid Transition", description: `Cannot change from "${cn.status}" to "${newStatus}".`, variant: "destructive" });
       return;
     }
-    statusMutation.mutate({ id: cn.id, status: newStatus });
+    updateCreditNoteStatus.mutate({ id: cn.id, status: newStatus });
   };
-
-  const updateMutation = useMutation({
-    mutationFn: async () => {
-      if (!editingCreditNote) throw new Error("No credit note selected");
-      if (!orgId) throw new Error("Organization not found");
-      if (!editCustomerId) throw new Error("Please select a customer.");
-      if (!editForm.amount || Number(editForm.amount) <= 0) throw new Error("Please enter a valid amount.");
-      const customer = customers.find((c) => c.id === editCustomerId);
-      if (!customer) throw new Error("Selected customer not found.");
-      const { error } = await supabase.from("credit_notes").update({
-        client_name: customer.name,
-        customer_id: editCustomerId,
-        amount: Number(editForm.amount),
-        reason: editForm.reason || null,
-        issue_date: editForm.issue_date,
-        status: editForm.status,
-      }).eq("id", editingCreditNote.id).eq("organization_id", orgId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      queryClient.invalidateQueries({ queryKey: ["financial-data"] });
-      setIsEditDialogOpen(false);
-      setEditingCreditNote(null);
-    },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      if (!orgId) throw new Error("Organization not found");
-      // GBC-91-sibling: An "applied" credit note has been offset against an
-      // invoice (GL trigger has fired); an issued credit note may have
-      // journal entries. Block both paths and direct the user to void instead.
-      const [statusCheck, glCheck] = await Promise.all([
-        supabase.from("credit_notes").select("id").eq("id", id).eq("organization_id", orgId).eq("status", "applied").limit(1),
-        supabase.from("journal_entries").select("id").eq("source_id", id).eq("source_type", "credit_note").eq("organization_id", orgId).limit(1),
-      ]);
-      if ((statusCheck.data?.length ?? 0) > 0 || (glCheck.data?.length ?? 0) > 0) {
-        throw new Error("Cannot delete this credit note — it has been applied to an invoice or has journal entries. Void it instead.");
-      }
-      const { data: deleted, error } = await supabase.from("credit_notes").delete().eq("id", id).eq("organization_id", orgId).select("id");
-      if (error) throw error;
-      if (!deleted || deleted.length === 0) throw new Error("Credit note not found or could not be deleted.");
-    },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["credit-notes"] }); queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] }); queryClient.invalidateQueries({ queryKey: ["financial-data"] }); toast({ title: "Credit Note Deleted" }); },
-    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
 
   const handleEdit = (cn: CreditNote) => {
     setEditingCreditNote(cn);
@@ -331,8 +217,21 @@ export default function CreditNotes() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setIsDialogOpen(false); resetForm(); }}>Cancel</Button>
-                <Button onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
-                  {createMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                <Button
+                  onClick={() => {
+                    if (!user) return toast({ title: "Error", description: "Not authenticated.", variant: "destructive" });
+                    if (!selectedCustomerId) return toast({ title: "Validation Error", description: "Please select a customer.", variant: "destructive" });
+                    if (!form.amount || Number(form.amount) <= 0) return toast({ title: "Validation Error", description: "Please enter a valid amount.", variant: "destructive" });
+                    const customer = customers.find((c) => c.id === selectedCustomerId);
+                    if (!customer) return toast({ title: "Error", description: "Selected customer not found.", variant: "destructive" });
+                    createCreditNote.mutate(
+                      { userId: user.id, customerId: selectedCustomerId, customerName: customer.name, amount: Number(form.amount), reason: form.reason || null, issueDate: form.issue_date, status: form.status },
+                      { onSuccess: () => { setIsDialogOpen(false); resetForm(); } },
+                    );
+                  }}
+                  disabled={createCreditNote.isPending}
+                >
+                  {createCreditNote.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                   Create
                 </Button>
               </DialogFooter>
@@ -458,7 +357,7 @@ export default function CreditNotes() {
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => { if (deleteTarget) { deleteMutation.mutate(deleteTarget.id); setDeleteTarget(null); } }}
+                onClick={() => { if (deleteTarget) { deleteCreditNote.mutate(deleteTarget.id); setDeleteTarget(null); } }}
               >Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -498,8 +397,21 @@ export default function CreditNotes() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsEditDialogOpen(false); setEditingCreditNote(null); }}>Cancel</Button>
-              <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
-                {updateMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Button
+                onClick={() => {
+                  if (!editingCreditNote) return;
+                  if (!editCustomerId) return toast({ title: "Validation Error", description: "Please select a customer.", variant: "destructive" });
+                  if (!editForm.amount || Number(editForm.amount) <= 0) return toast({ title: "Validation Error", description: "Please enter a valid amount.", variant: "destructive" });
+                  const customer = customers.find((c) => c.id === editCustomerId);
+                  if (!customer) return toast({ title: "Error", description: "Selected customer not found.", variant: "destructive" });
+                  updateCreditNote.mutate(
+                    { id: editingCreditNote.id, customerId: editCustomerId, customerName: customer.name, amount: Number(editForm.amount), reason: editForm.reason || null, issueDate: editForm.issue_date, status: editForm.status },
+                    { onSuccess: () => { setIsEditDialogOpen(false); setEditingCreditNote(null); } },
+                  );
+                }}
+                disabled={updateCreditNote.isPending}
+              >
+                {updateCreditNote.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save Changes
               </Button>
             </DialogFooter>
